@@ -132,13 +132,14 @@ export default function WordbindPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
               {Array.from(new Set(solution.words.map(w => w.length)))
                 .sort((a, b) => b - a)
+                .filter(length => length >= 5)
                 .map(length => {
                   const wordsOfLength = solution.words.filter(w => w.length === length);
                   return (
                     <div key={length}>
                       <h3 style={{
                         fontWeight: 600,
-                        color: '#374151',
+                        color: '#065f46',
                         marginBottom: '0.75rem',
                         fontSize: '1.125rem'
                       }}>
