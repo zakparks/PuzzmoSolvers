@@ -16,17 +16,74 @@ export default function MemokuPage() {
 
   const handleCellChange = (row: number, col: number, value: string) => {
     const newGrid = grid.map(r => [...r]);
+
+    // Handle keyboard shortcuts for stars
+    const upperValue = value.toUpperCase();
+    if (upperValue === 'Y') {
+      handleStarButtonClick('gold');
+      focusNextCell(row, col);
+      return;
+    } else if (upperValue === 'P') {
+      handleStarButtonClick('purple');
+      focusNextCell(row, col);
+      return;
+    } else if (upperValue === 'G') {
+      handleStarButtonClick('green');
+      focusNextCell(row, col);
+      return;
+    }
+
+    // Handle space to clear cell and auto-tab
+    if (value === ' ') {
+      newGrid[row][col] = null;
+      setGrid(newGrid);
+      setSolvedGrid(null);
+      setError('');
+      focusNextCell(row, col);
+      return;
+    }
+
     const num = parseInt(value);
 
     if (value === '' || value === '0') {
       newGrid[row][col] = null;
     } else if (num >= 1 && num <= 9) {
       newGrid[row][col] = num;
+      setGrid(newGrid);
+      setSolvedGrid(null);
+      setError('');
+      // Auto-tab to next cell
+      focusNextCell(row, col);
+      return;
     }
 
     setGrid(newGrid);
     setSolvedGrid(null);
     setError('');
+  };
+
+  const focusNextCell = (row: number, col: number) => {
+    let nextRow = row;
+    let nextCol = col + 1;
+
+    // Move to next row if at end of current row
+    if (nextCol >= 9) {
+      nextCol = 0;
+      nextRow = row + 1;
+    }
+
+    // If we're at the last cell, don't focus anything
+    if (nextRow >= 9) {
+      return;
+    }
+
+    // Focus the next cell
+    const nextInput = document.querySelector(
+      `input[data-row="${nextRow}"][data-col="${nextCol}"]`
+    ) as HTMLInputElement;
+    if (nextInput) {
+      nextInput.focus();
+    }
   };
 
   const handleCellFocus = (row: number, col: number) => {
@@ -160,8 +217,8 @@ export default function MemokuPage() {
 
       <div className={solverStyles.infoBox}>
         <h2>How to use</h2>
-        <p>1. Enter the given numbers in the grid (1-9)</p>
-        <p>2. Click on a cell, then click a star button to mark it (up to 3 stars)</p>
+        <p>1. Enter the given numbers in the grid (1-9). Press space to leave a cell blank. The cursor will automatically advance.</p>
+        <p>2. To mark stars (up to 3): click a cell and click a star button, or press Y (Yellow), P (Purple), or G (Green)</p>
         <p>3. Click Solve to find the solution</p>
       </div>
 
@@ -174,7 +231,7 @@ export default function MemokuPage() {
               selectedStarColor === 'gold' ? 'active' : ''
             }`}
           >
-            <span>⭐</span> Gold
+            <span>⭐</span>Yellow
           </button>
           <button
             onClick={() => handleStarButtonClick('purple')}
@@ -182,7 +239,7 @@ export default function MemokuPage() {
               selectedStarColor === 'purple' ? 'active' : ''
             }`}
           >
-            <span>⭐</span> Purple
+            <span>⭐</span>Purple
           </button>
           <button
             onClick={() => handleStarButtonClick('green')}
@@ -190,7 +247,7 @@ export default function MemokuPage() {
               selectedStarColor === 'green' ? 'active' : ''
             }`}
           >
-            <span>⭐</span> Green
+            <span>⭐</span>Green
           </button>
         </div>
       </div>
@@ -222,6 +279,8 @@ export default function MemokuPage() {
                       onFocus={() => handleCellFocus(rowIndex, colIndex)}
                       disabled={!!solvedGrid}
                       style={getCellStyle(rowIndex, colIndex)}
+                      data-row={rowIndex}
+                      data-col={colIndex}
                     />
                   </div>
                 );

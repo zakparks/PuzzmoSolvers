@@ -27,6 +27,18 @@ export default function SpelltowerPage() {
 
   const handleCellLetterChange = (row: number, col: number, value: string) => {
     const newGrid = grid.map(r => r.map(c => ({ ...c })));
+
+    // Allow space to clear a cell
+    if (value === ' ') {
+      newGrid[row][col].letter = '';
+      newGrid[row][col].type = 'blank';
+      setGrid(newGrid);
+      setSolution(null);
+      // Auto-tab to next cell
+      focusNextCell(row, col);
+      return;
+    }
+
     const sanitized = value.toUpperCase().replace(/[^A-Z]/g, '');
 
     if (sanitized) {
@@ -34,13 +46,40 @@ export default function SpelltowerPage() {
       if (newGrid[row][col].type === 'blank') {
         newGrid[row][col].type = 'letter';
       }
+      setGrid(newGrid);
+      setSolution(null);
+      // Auto-tab to next cell
+      focusNextCell(row, col);
     } else {
       newGrid[row][col].letter = '';
       newGrid[row][col].type = 'blank';
+      setGrid(newGrid);
+      setSolution(null);
+    }
+  };
+
+  const focusNextCell = (row: number, col: number) => {
+    let nextRow = row;
+    let nextCol = col + 1;
+
+    // Move to next row if at end of current row
+    if (nextCol >= COLS) {
+      nextCol = 0;
+      nextRow = row + 1;
     }
 
-    setGrid(newGrid);
-    setSolution(null);
+    // If we're at the last cell, don't focus anything
+    if (nextRow >= ROWS) {
+      return;
+    }
+
+    // Focus the next cell
+    const nextInput = document.querySelector(
+      `input[data-row="${nextRow}"][data-col="${nextCol}"]`
+    ) as HTMLInputElement;
+    if (nextInput) {
+      nextInput.focus();
+    }
   };
 
   const handleCellClick = (row: number, col: number) => {
@@ -103,25 +142,25 @@ export default function SpelltowerPage() {
     <div className={solverStyles.solverContainer}>
       <h1 className={solverStyles.solverTitle} style={{ marginBottom: '2rem' }}>Spelltower Solver</h1>
 
+      <div className={solverStyles.infoBox}>
+        <h2>How to use</h2>
+        <p>1. Enter letters in the grid (9 columns × 13 rows). Press space for blank cells. The cursor will automatically advance when you enter a valid letter or space.</p>
+        <p>2. Select a cell type and click cells to mark them as red or starred</p>
+        <p>3. Click Solve to find the optimal word sequence</p>
+      </div>
+
       <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '2rem' }} className="lg:grid-cols-2">
         <div>
-          <div className={solverStyles.infoBox}>
-            <h2>How to use</h2>
-            <p>1. Enter letters in the grid (9 columns × 13 rows)</p>
-            <p>2. Select a cell type and click cells to mark them as red or starred</p>
-            <p>3. Click Solve to find the optimal word sequence</p>
-          </div>
-
-          <div style={{ marginBottom: '1.5rem' }}>
+          <div style={{ marginBottom: '1.5rem', textAlign: 'center' }}>
             <h3 className={solverStyles.sectionTitle}>Cell Type</h3>
-            <div className={gridStyles.cellTypeButtons}>
+            <div className={gridStyles.cellTypeButtons} style={{ justifyContent: 'center' }}>
               <button
                 onClick={() => setSelectedCellType('letter')}
                 className={`${gridStyles.cellTypeButton} ${gridStyles.cellTypeButtonNormal} ${
                   selectedCellType === 'letter' ? 'active' : ''
                 }`}
               >
-                Normal Letter
+                Normal
               </button>
               <button
                 onClick={() => setSelectedCellType('red')}
@@ -129,7 +168,7 @@ export default function SpelltowerPage() {
                   selectedCellType === 'red' ? 'active' : ''
                 }`}
               >
-                Red (clears row)
+                Red
               </button>
               <button
                 onClick={() => setSelectedCellType('starred')}
@@ -137,7 +176,7 @@ export default function SpelltowerPage() {
                   selectedCellType === 'starred' ? 'active' : ''
                 }`}
               >
-                ⭐ Starred (2x score)
+                ⭐ Starred
               </button>
               <button
                 onClick={() => setSelectedCellType('blank')}
@@ -150,7 +189,7 @@ export default function SpelltowerPage() {
             </div>
           </div>
 
-          <div style={{ marginBottom: '1.5rem', overflowX: 'auto' }}>
+          <div style={{ marginBottom: '1.5rem', textAlign: 'center' }}>
             <div className={gridStyles.gridContainer}>
               <div className={gridStyles.spelltowerGrid}>
                 {grid.map((row, rowIndex) =>
@@ -164,6 +203,8 @@ export default function SpelltowerPage() {
                       onClick={() => handleCellClick(rowIndex, colIndex)}
                       className={getCellClassName(cell)}
                       disabled={solving}
+                      data-row={rowIndex}
+                      data-col={colIndex}
                     />
                   ))
                 )}
@@ -171,22 +212,24 @@ export default function SpelltowerPage() {
             </div>
           </div>
 
-          <div className={buttonStyles.buttonGroup}>
-            <button
-              onClick={handleSolve}
-              disabled={solving}
-              className={`${buttonStyles.button} ${buttonStyles.buttonPrimary}`}
-              style={{ fontSize: '1.125rem' }}
-            >
-              {solving ? 'Solving...' : 'Solve'}
-            </button>
-            <button
-              onClick={handleClear}
-              disabled={solving}
-              className={`${buttonStyles.button} ${buttonStyles.buttonSecondary}`}
-            >
-              Clear
-            </button>
+          <div style={{ textAlign: 'center' }}>
+            <div className={buttonStyles.buttonGroup} style={{ justifyContent: 'center' }}>
+              <button
+                onClick={handleSolve}
+                disabled={solving}
+                className={`${buttonStyles.button} ${buttonStyles.buttonPrimary}`}
+                style={{ fontSize: '1.125rem' }}
+              >
+                {solving ? 'Solving...' : 'Solve'}
+              </button>
+              <button
+                onClick={handleClear}
+                disabled={solving}
+                className={`${buttonStyles.button} ${buttonStyles.buttonSecondary}`}
+              >
+                Clear
+              </button>
+            </div>
           </div>
         </div>
 
