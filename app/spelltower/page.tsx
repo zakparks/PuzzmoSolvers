@@ -2,6 +2,9 @@
 
 import { useState } from 'react';
 import { solveSpelltower, createEmptyGrid, Grid, Cell, CellType } from '@/lib/solvers/spelltower';
+import buttonStyles from '@/styles/components/button.module.css';
+import solverStyles from '@/styles/solver.module.css';
+import gridStyles from '@/styles/grid-solver.module.css';
 
 const ROWS = 13;
 const COLS = 9;
@@ -24,6 +27,18 @@ export default function SpelltowerPage() {
 
   const handleCellLetterChange = (row: number, col: number, value: string) => {
     const newGrid = grid.map(r => r.map(c => ({ ...c })));
+
+    // Allow space to clear a cell
+    if (value === ' ') {
+      newGrid[row][col].letter = '';
+      newGrid[row][col].type = 'blank';
+      setGrid(newGrid);
+      setSolution(null);
+      // Auto-tab to next cell
+      focusNextCell(row, col);
+      return;
+    }
+
     const sanitized = value.toUpperCase().replace(/[^A-Z]/g, '');
 
     if (sanitized) {
@@ -31,13 +46,40 @@ export default function SpelltowerPage() {
       if (newGrid[row][col].type === 'blank') {
         newGrid[row][col].type = 'letter';
       }
+      setGrid(newGrid);
+      setSolution(null);
+      // Auto-tab to next cell
+      focusNextCell(row, col);
     } else {
       newGrid[row][col].letter = '';
       newGrid[row][col].type = 'blank';
+      setGrid(newGrid);
+      setSolution(null);
+    }
+  };
+
+  const focusNextCell = (row: number, col: number) => {
+    let nextRow = row;
+    let nextCol = col + 1;
+
+    // Move to next row if at end of current row
+    if (nextCol >= COLS) {
+      nextCol = 0;
+      nextRow = row + 1;
     }
 
-    setGrid(newGrid);
-    setSolution(null);
+    // If we're at the last cell, don't focus anything
+    if (nextRow >= ROWS) {
+      return;
+    }
+
+    // Focus the next cell
+    const nextInput = document.querySelector(
+      `input[data-row="${nextRow}"][data-col="${nextCol}"]`
+    ) as HTMLInputElement;
+    if (nextInput) {
+      nextInput.focus();
+    }
   };
 
   const handleCellClick = (row: number, col: number) => {
@@ -48,7 +90,6 @@ export default function SpelltowerPage() {
       cell.letter = '';
       cell.type = 'blank';
     } else if (cell.letter) {
-      // Only change type if there's a letter
       cell.type = selectedCellType;
     }
 
@@ -76,79 +117,71 @@ export default function SpelltowerPage() {
     setSolution(null);
   };
 
-  const getCellStyle = (cell: Cell): string => {
+  const getCellClassName = (cell: Cell): string => {
+    const classes = [gridStyles.spelltowerCell];
+
     if (cell.type === 'blank' || !cell.letter) {
-      return 'bg-gray-100 text-gray-400';
+      classes.push(gridStyles.cellTypeBlank);
+    } else {
+      switch (cell.type) {
+        case 'red':
+          classes.push(gridStyles.cellTypeRed);
+          break;
+        case 'starred':
+          classes.push(gridStyles.cellTypeStarred);
+          break;
+        default:
+          classes.push(gridStyles.cellTypeNormal);
+      }
     }
 
-    switch (cell.type) {
-      case 'red':
-        return 'bg-red-200 text-red-900 font-bold';
-      case 'starred':
-        return 'bg-yellow-100 text-yellow-900 font-bold';
-      default:
-        return 'bg-white text-gray-900';
-    }
+    return classes.join(' ');
   };
 
   return (
-    <div className="max-w-7xl mx-auto">
-      <h1 className="text-3xl font-bold mb-6">Spelltower Solver</h1>
+    <div className={solverStyles.solverContainer}>
+      <h1 className={solverStyles.solverTitle} style={{ marginBottom: '2rem' }}>Spelltower Solver</h1>
 
-      <div className="grid lg:grid-cols-2 gap-6">
+      <div className={solverStyles.infoBox}>
+        <h2>How to use</h2>
+        <p>1. Enter letters in the grid (9 columns × 13 rows). Press space for blank cells. The cursor will automatically advance when you enter a valid letter or space.</p>
+        <p>2. Select a cell type and click cells to mark them as red or starred</p>
+        <p>3. Click Solve to find the optimal word sequence</p>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '2rem' }} className="lg:grid-cols-2">
         <div>
-          <div className="mb-4 p-4 bg-blue-50 rounded-lg">
-            <h2 className="text-xl font-semibold mb-2">How to use</h2>
-            <p className="text-sm mb-2">
-              1. Enter letters in the grid (9 columns × 13 rows)
-            </p>
-            <p className="text-sm mb-2">
-              2. Select a cell type and click cells to mark them as red or starred
-            </p>
-            <p className="text-sm">
-              3. Click Solve to find the optimal word sequence
-            </p>
-          </div>
-
-          <div className="mb-4">
-            <h3 className="font-semibold mb-2">Cell Type</h3>
-            <div className="flex gap-2 flex-wrap">
+          <div style={{ marginBottom: '1.5rem', textAlign: 'center' }}>
+            <h3 className={solverStyles.sectionTitle}>Cell Type</h3>
+            <div className={gridStyles.cellTypeButtons} style={{ justifyContent: 'center' }}>
               <button
                 onClick={() => setSelectedCellType('letter')}
-                className={`px-4 py-2 rounded border-2 ${
-                  selectedCellType === 'letter'
-                    ? 'bg-blue-500 text-white border-blue-600'
-                    : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                className={`${gridStyles.cellTypeButton} ${gridStyles.cellTypeButtonNormal} ${
+                  selectedCellType === 'letter' ? 'active' : ''
                 }`}
               >
-                Normal Letter
+                Normal
               </button>
               <button
                 onClick={() => setSelectedCellType('red')}
-                className={`px-4 py-2 rounded border-2 ${
-                  selectedCellType === 'red'
-                    ? 'bg-red-500 text-white border-red-600'
-                    : 'bg-red-100 text-red-700 border-red-300 hover:bg-red-200'
+                className={`${gridStyles.cellTypeButton} ${gridStyles.cellTypeButtonRed} ${
+                  selectedCellType === 'red' ? 'active' : ''
                 }`}
               >
-                Red (clears row)
+                Red
               </button>
               <button
                 onClick={() => setSelectedCellType('starred')}
-                className={`px-4 py-2 rounded border-2 ${
-                  selectedCellType === 'starred'
-                    ? 'bg-yellow-500 text-white border-yellow-600'
-                    : 'bg-yellow-100 text-yellow-700 border-yellow-300 hover:bg-yellow-200'
+                className={`${gridStyles.cellTypeButton} ${gridStyles.cellTypeButtonStarred} ${
+                  selectedCellType === 'starred' ? 'active' : ''
                 }`}
               >
-                ⭐ Starred (2x score)
+                ⭐ Starred
               </button>
               <button
                 onClick={() => setSelectedCellType('blank')}
-                className={`px-4 py-2 rounded border-2 ${
-                  selectedCellType === 'blank'
-                    ? 'bg-gray-500 text-white border-gray-600'
-                    : 'bg-gray-100 text-gray-700 border-gray-300 hover:bg-gray-200'
+                className={`${gridStyles.cellTypeButton} ${gridStyles.cellTypeButtonBlank} ${
+                  selectedCellType === 'blank' ? 'active' : ''
                 }`}
               >
                 Blank
@@ -156,93 +189,105 @@ export default function SpelltowerPage() {
             </div>
           </div>
 
-          <div className="mb-4 overflow-x-auto">
-            <div className="inline-block border-4 border-gray-800">
-              <div className="grid gap-0">
-                {grid.map((row, rowIndex) => (
-                  <div key={rowIndex} className="flex">
-                    {row.map((cell, colIndex) => (
-                      <input
-                        key={`${rowIndex}-${colIndex}`}
-                        type="text"
-                        maxLength={1}
-                        value={cell.letter}
-                        onChange={(e) => handleCellLetterChange(rowIndex, colIndex, e.target.value)}
-                        onClick={() => handleCellClick(rowIndex, colIndex)}
-                        className={`
-                          w-10 h-10 text-center text-lg font-semibold border border-gray-300
-                          focus:outline-none focus:ring-2 focus:ring-blue-500 uppercase
-                          ${getCellStyle(cell)}
-                        `}
-                        disabled={solving}
-                      />
-                    ))}
-                  </div>
-                ))}
+          <div style={{ marginBottom: '1.5rem', textAlign: 'center' }}>
+            <div className={gridStyles.gridContainer}>
+              <div className={gridStyles.spelltowerGrid}>
+                {grid.map((row, rowIndex) =>
+                  row.map((cell, colIndex) => (
+                    <input
+                      key={`${rowIndex}-${colIndex}`}
+                      type="text"
+                      maxLength={1}
+                      value={cell.letter}
+                      onChange={(e) => handleCellLetterChange(rowIndex, colIndex, e.target.value)}
+                      onClick={() => handleCellClick(rowIndex, colIndex)}
+                      className={getCellClassName(cell)}
+                      disabled={solving}
+                      data-row={rowIndex}
+                      data-col={colIndex}
+                    />
+                  ))
+                )}
               </div>
             </div>
           </div>
 
-          <div className="flex gap-4">
-            <button
-              onClick={handleSolve}
-              disabled={solving}
-              className="bg-blue-600 text-white py-3 px-6 rounded hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed font-semibold"
-            >
-              {solving ? 'Solving...' : 'Solve'}
-            </button>
-            <button
-              onClick={handleClear}
-              disabled={solving}
-              className="bg-gray-500 text-white py-3 px-6 rounded hover:bg-gray-600 transition-colors disabled:bg-gray-400 font-semibold"
-            >
-              Clear
-            </button>
+          <div style={{ textAlign: 'center' }}>
+            <div className={buttonStyles.buttonGroup} style={{ justifyContent: 'center' }}>
+              <button
+                onClick={handleSolve}
+                disabled={solving}
+                className={`${buttonStyles.button} ${buttonStyles.buttonPrimary}`}
+                style={{ fontSize: '1.125rem' }}
+              >
+                {solving ? 'Solving...' : 'Solve'}
+              </button>
+              <button
+                onClick={handleClear}
+                disabled={solving}
+                className={`${buttonStyles.button} ${buttonStyles.buttonSecondary}`}
+              >
+                Clear
+              </button>
+            </div>
           </div>
         </div>
 
         <div>
           {solving && (
-            <div className="p-4 bg-blue-100 border border-blue-400 text-blue-700 rounded">
-              Searching for optimal word sequence... This may take a moment.
+            <div className={solverStyles.resultSection} style={{
+              background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(37, 99, 235, 0.1) 100%)',
+              border: '2px solid rgba(59, 130, 246, 0.3)'
+            }}>
+              <p style={{ color: '#1e40af', fontWeight: 600, margin: 0 }}>
+                Searching for optimal word sequence... This may take a moment.
+              </p>
             </div>
           )}
 
           {solution && (
-            <div className="bg-green-50 p-6 rounded-lg shadow">
-              <h2 className="text-2xl font-bold mb-4 text-green-800">
-                Solution Found!
-              </h2>
+            <div className={`${solverStyles.resultSection} ${solverStyles.coreResultSection}`}>
+              <h2>Solution Found!</h2>
 
-              <div className="mb-4 p-4 bg-white rounded border-2 border-green-300">
-                <div className="text-lg font-semibold">
+              <div style={{
+                background: 'white',
+                padding: '1.5rem',
+                borderRadius: '0.75rem',
+                border: '2px solid #34d399',
+                marginBottom: '1.5rem'
+              }}>
+                <div style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: '0.5rem' }}>
                   Total Score: {solution.totalScore}
                 </div>
-                <div className="text-sm text-gray-600">
-                  {solution.clearedAll ? 'All tiles cleared!' : 'Some tiles remaining'}
+                <div style={{ fontSize: '0.9375rem', color: '#059669', marginBottom: '0.25rem' }}>
+                  {solution.clearedAll ? '✓ All tiles cleared!' : 'Some tiles remaining'}
                 </div>
-                <div className="text-sm text-gray-600">
+                <div style={{ fontSize: '0.9375rem', color: '#4b5563' }}>
                   Word sequence: {solution.sequence.length} words
                 </div>
               </div>
 
-              <h3 className="font-semibold mb-2">Word Sequence:</h3>
-              <div className="space-y-2 max-h-96 overflow-y-auto">
+              <h3 className={solverStyles.sectionTitle}>Word Sequence:</h3>
+              <div className={gridStyles.solutionSequence}>
                 {solution.sequence.map((wordPath, idx) => (
-                  <div key={idx} className="bg-white p-3 rounded border border-green-300">
-                    <div className="flex justify-between items-center">
+                  <div key={idx} className={gridStyles.sequenceItem}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div>
-                        <span className="font-mono text-lg font-bold">{idx + 1}. {wordPath.word}</span>
-                        {wordPath.hasStarredTile && <span className="ml-2 text-yellow-600">⭐</span>}
+                        <span style={{ fontSize: '1.125rem', fontWeight: 700 }}>
+                          {idx + 1}. {wordPath.word}
+                        </span>
+                        {wordPath.hasStarredTile && <span style={{ marginLeft: '0.5rem', color: '#ca8a04' }}>⭐</span>}
                         {wordPath.hasRedTile && (
-                          <span className="ml-2 text-red-600 text-sm">(red tile)</span>
+                          <span style={{ marginLeft: '0.5rem', color: '#dc2626', fontSize: '0.875rem' }}>
+                            (red tile)
+                          </span>
                         )}
                       </div>
-                      <div className="text-green-700 font-semibold">
+                      <div style={{ color: '#059669', fontWeight: 700 }}>
                         +{wordPath.score}
                       </div>
                     </div>
-                    <div className="text-xs text-gray-500 mt-1">
+                    <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.25rem' }}>
                       {wordPath.word.length} letters
                     </div>
                   </div>
