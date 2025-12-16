@@ -1,47 +1,33 @@
 import Link from 'next/link';
+import styles from '@/styles/components/navbar.module.css';
 
 export default function Navbar() {
   return (
-    <nav className="bg-blue-600 text-white shadow-lg">
-      <div className="container mx-auto px-4 py-4">
-        <ul className="flex space-x-6 items-center">
+    <nav className={styles.navbar}>
+      <div className={styles.navContainer}>
+        <ul className={styles.navList}>
           <li>
-            <Link
-              href="/"
-              className="hover:text-blue-200 transition-colors font-semibold"
-            >
+            <Link href="/" className={`${styles.navLink} ${styles.homeLink}`}>
               Home
             </Link>
           </li>
           <li>
-            <Link
-              href="/typeshift"
-              className="hover:text-blue-200 transition-colors"
-            >
+            <Link href="/typeshift" className={styles.navLink}>
               Typeshift
             </Link>
           </li>
           <li>
-            <Link
-              href="/memoku"
-              className="hover:text-blue-200 transition-colors"
-            >
+            <Link href="/memoku" className={styles.navLink}>
               Memoku
             </Link>
           </li>
           <li>
-            <Link
-              href="/wordbind"
-              className="hover:text-blue-200 transition-colors"
-            >
+            <Link href="/wordbind" className={styles.navLink}>
               Wordbind
             </Link>
           </li>
           <li>
-            <Link
-              href="/spelltower"
-              className="hover:text-blue-200 transition-colors"
-            >
+            <Link href="/spelltower" className={styles.navLink}>
               Spelltower
             </Link>
           </li>
