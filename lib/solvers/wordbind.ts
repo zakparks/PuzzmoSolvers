@@ -14,6 +14,9 @@ function normalizeSource(text: string): string {
 
 /**
  * Checks if a word can be formed from the source text following the ordered-letter rule
+ * Rules:
+ * 1. Letters must appear in left-to-right order from source
+ * 2. Any letter from the source can be doubled (used twice in a row) once
  * @param word - The word to check
  * @param source - The source text
  * @param allowDouble - Whether to allow using a letter twice as a double letter
@@ -25,39 +28,25 @@ function canFormWord(word: string, source: string, allowDouble: boolean = true):
   for (let i = 0; i < wordUpper.length; i++) {
     const char = wordUpper[i];
 
-    // Check for double letter
+    // Check if this is a double letter (same as previous character)
     if (i > 0 && char === wordUpper[i - 1] && allowDouble) {
-      // This is a double letter, we can use the same source position
-      // Find the position where we got the previous letter
-      const prevSourceIndex = sourceIndex;
+      // This is a doubled letter - we don't need to find it again in source
+      // The previous iteration already found it, and we're allowed to use it twice
+      continue;
+    }
 
-      // Try to find this letter again after the previous position
-      let found = false;
-      for (let j = sourceIndex; j < source.length; j++) {
-        if (source[j] === char) {
-          sourceIndex = j + 1;
-          found = true;
-          break;
-        }
+    // Find this letter in the source starting from current position
+    let found = false;
+    for (let j = sourceIndex; j < source.length; j++) {
+      if (source[j] === char) {
+        sourceIndex = j + 1;
+        found = true;
+        break;
       }
+    }
 
-      if (!found) {
-        return false;
-      }
-    } else {
-      // Regular letter, find it in source
-      let found = false;
-      for (let j = sourceIndex; j < source.length; j++) {
-        if (source[j] === char) {
-          sourceIndex = j + 1;
-          found = true;
-          break;
-        }
-      }
-
-      if (!found) {
-        return false;
-      }
+    if (!found) {
+      return false;
     }
   }
 
@@ -96,26 +85,38 @@ function generateSubsequences(source: string, minLength: number = 3, maxLength: 
 
 /**
  * Generates candidates including double-letter variants
+ * Uses a recursive approach to build all possible words with optional letter doubling
  */
 function generateCandidatesWithDoubles(source: string, minLength: number = 3): Set<string> {
   const candidates = new Set<string>();
   const normalized = normalizeSource(source);
+  const maxLength = Math.min(20, normalized.length + 5); // Allow for doubled letters
 
-  // Generate basic subsequences
-  const subsequences = generateSubsequences(normalized, minLength, Math.min(20, normalized.length));
+  function buildWords(index: number, current: string, lastChar: string) {
+    // Add current word if it meets length requirements
+    if (current.length >= minLength && current.length <= maxLength) {
+      candidates.add(current);
+    }
 
-  for (const subseq of subsequences) {
-    candidates.add(subseq);
+    // Stop if we've reached max length or end of source
+    if (current.length >= maxLength || index >= normalized.length) {
+      return;
+    }
 
-    // Try adding double letters
-    for (let i = 0; i < subseq.length - 1; i++) {
-      // Insert a double of the current letter
-      const withDouble = subseq.slice(0, i + 1) + subseq[i] + subseq.slice(i + 1);
-      if (withDouble.length <= 20) {
-        candidates.add(withDouble);
-      }
+    // Option 1: Skip current character
+    buildWords(index + 1, current, lastChar);
+
+    // Option 2: Take current character
+    const char = normalized[index];
+    buildWords(index + 1, current + char, char);
+
+    // Option 3: If we just added a character, we can double it (use same letter again)
+    if (lastChar && current.length > 0 && current.length < maxLength) {
+      buildWords(index, current + lastChar, ''); // Use lastChar again, but don't allow triple
     }
   }
+
+  buildWords(0, '', '');
 
   return candidates;
 }
@@ -135,8 +136,8 @@ export async function solveWordbind(sourceText: string): Promise<WordbindSolutio
     .split(/\s+/)
     .filter(w => w.length > 0);
 
-  // Generate all candidate words
-  const candidates = generateCandidatesWithDoubles(normalized, 3);
+  // Generate all candidate words (minimum 5 letters)
+  const candidates = generateCandidatesWithDoubles(normalized, 5);
 
   // Filter out exact source words
   const filteredCandidates = Array.from(candidates).filter(

@@ -2,6 +2,9 @@
 
 import { useState } from 'react';
 import { solveWordbind } from '@/lib/solvers/wordbind';
+import buttonStyles from '@/styles/components/button.module.css';
+import inputStyles from '@/styles/components/input.module.css';
+import solverStyles from '@/styles/solver.module.css';
 
 export default function WordbindPage() {
   const [sourceText, setSourceText] = useState('');
@@ -44,49 +47,51 @@ export default function WordbindPage() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto">
-      <h1 className="text-3xl font-bold mb-6">Wordbind Solver</h1>
+    <div className={solverStyles.solverContainer}>
+      <h1 className={solverStyles.solverTitle} style={{ marginBottom: '2rem' }}>Wordbind Solver</h1>
 
-      <div className="mb-6 p-6 bg-blue-50 rounded-lg">
-        <h2 className="text-xl font-semibold mb-3">How it works</h2>
-        <p className="mb-2">
+      <div className={solverStyles.infoBox}>
+        <h2>How it works</h2>
+        <p>
           Enter 2-3 source words. The solver will find all possible words that can be formed by:
         </p>
-        <ul className="list-disc list-inside space-y-1 ml-4">
+        <ul style={{ listStyleType: 'disc', marginLeft: '2rem', marginTop: '0.5rem' }}>
           <li>Using letters from the source in the order they appear (left-to-right)</li>
           <li>Optionally using a letter twice to create a double letter</li>
           <li>Not including the exact source words in the output</li>
         </ul>
-        <p className="mt-3 text-sm text-gray-600">
+        <p style={{ marginTop: '1rem', fontSize: '0.875rem', color: '#6b7280' }}>
           Example: From "SAMPLE CARD", you can make "SAMPLER", "APPLE", "CLAD", etc.
         </p>
       </div>
 
-      <div className="bg-white p-6 rounded-lg shadow mb-6">
-        <label className="block mb-4">
-          <span className="text-gray-700 font-semibold">Source Words (2-3 words):</span>
+      <div className={solverStyles.setupCard} style={{ marginBottom: '2rem' }}>
+        <div className={inputStyles.inputGroup}>
+          <label className={inputStyles.inputLabel}>Source Words (2-3 words):</label>
           <input
             type="text"
             value={sourceText}
             onChange={(e) => setSourceText(e.target.value)}
             placeholder="e.g., SAMPLE CARD"
-            className="mt-2 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-3 border text-lg"
+            className={inputStyles.input}
             disabled={solving}
+            style={{ fontSize: '1.125rem' }}
           />
-        </label>
+        </div>
 
-        <div className="flex gap-4">
+        <div className={buttonStyles.buttonGroup}>
           <button
             onClick={handleSolve}
             disabled={solving}
-            className="bg-blue-600 text-white py-3 px-6 rounded hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed font-semibold"
+            className={`${buttonStyles.button} ${buttonStyles.buttonPrimary}`}
+            style={{ fontSize: '1.125rem' }}
           >
             {solving ? 'Solving...' : 'Solve'}
           </button>
           <button
             onClick={handleClear}
             disabled={solving}
-            className="bg-gray-500 text-white py-3 px-6 rounded hover:bg-gray-600 transition-colors disabled:bg-gray-400 font-semibold"
+            className={`${buttonStyles.button} ${buttonStyles.buttonSecondary}`}
           >
             Clear
           </button>
@@ -94,42 +99,58 @@ export default function WordbindPage() {
       </div>
 
       {error && (
-        <div className="p-4 bg-red-100 border border-red-400 text-red-700 rounded mb-6">
-          {error}
+        <div className={`${solverStyles.resultSection}`} style={{
+          background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(220, 38, 38, 0.1) 100%)',
+          border: '2px solid rgba(239, 68, 68, 0.3)',
+          marginBottom: '1.5rem'
+        }}>
+          <p style={{ color: '#991b1b', fontWeight: 600, margin: 0 }}>{error}</p>
         </div>
       )}
 
       {solving && (
-        <div className="p-4 bg-blue-100 border border-blue-400 text-blue-700 rounded mb-6">
-          Searching for valid words... This may take a moment.
+        <div className={`${solverStyles.resultSection}`} style={{
+          background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(37, 99, 235, 0.1) 100%)',
+          border: '2px solid rgba(59, 130, 246, 0.3)',
+          marginBottom: '1.5rem'
+        }}>
+          <p style={{ color: '#1e40af', fontWeight: 600, margin: 0 }}>
+            Searching for valid words... This may take a moment.
+          </p>
         </div>
       )}
 
       {solution && (
-        <div className="bg-green-50 p-6 rounded-lg shadow">
-          <h2 className="text-2xl font-bold mb-4 text-green-800">
+        <div className={`${solverStyles.resultSection} ${solverStyles.coreResultSection}`}>
+          <h2>
             Found {solution.totalWords} valid words
           </h2>
 
           {solution.totalWords === 0 ? (
-            <p className="text-gray-600">No valid words found for this input.</p>
+            <p className={solverStyles.resultDescription}>No valid words found for this input.</p>
           ) : (
-            <div className="space-y-4">
-              {/* Group by word length */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
               {Array.from(new Set(solution.words.map(w => w.length)))
                 .sort((a, b) => b - a)
+                .filter(length => length >= 5)
                 .map(length => {
                   const wordsOfLength = solution.words.filter(w => w.length === length);
                   return (
                     <div key={length}>
-                      <h3 className="font-semibold text-gray-700 mb-2">
+                      <h3 style={{
+                        fontWeight: 600,
+                        color: '#065f46',
+                        marginBottom: '0.75rem',
+                        fontSize: '1.125rem'
+                      }}>
                         {length}-letter words ({wordsOfLength.length}):
                       </h3>
-                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                      <div className={solverStyles.wordGrid}>
                         {wordsOfLength.map((word, idx) => (
                           <div
                             key={idx}
-                            className="bg-white p-2 rounded border border-green-300 font-mono text-sm"
+                            className={`${solverStyles.wordCard} ${solverStyles.coreWordCard}`}
+                            style={{ fontSize: '0.9375rem' }}
                           >
                             {word}
                           </div>

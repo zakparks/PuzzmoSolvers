@@ -2,11 +2,14 @@
 
 import { useState } from 'react';
 import { solveTypeshift, TypeshiftColumn } from '@/lib/solvers/typeshift';
+import buttonStyles from '@/styles/components/button.module.css';
+import inputStyles from '@/styles/components/input.module.css';
+import solverStyles from '@/styles/solver.module.css';
 
 export default function TypeshiftPage() {
-  const [numColumns, setNumColumns] = useState<number>(5);
-  const [columns, setColumns] = useState<TypeshiftColumn[]>([]);
-  const [isConfigured, setIsConfigured] = useState(false);
+  const [columns, setColumns] = useState<TypeshiftColumn[]>(
+    Array(5).fill(null).map(() => ({ letters: [''] }))
+  );
   const [solving, setSolving] = useState(false);
   const [solution, setSolution] = useState<{
     allWords: string[];
@@ -15,33 +18,22 @@ export default function TypeshiftPage() {
     totalLetters: number;
   } | null>(null);
 
-  const handleConfigureColumns = () => {
-    const newColumns: TypeshiftColumn[] = Array(numColumns).fill(null).map(() => ({
-      letters: [''],
-    }));
-    setColumns(newColumns);
-    setIsConfigured(true);
-    setSolution(null);
-  };
-
-  const handleLetterChange = (colIndex: number, letterIndex: number, value: string) => {
+  const handleColumnTextChange = (colIndex: number, value: string) => {
     const newColumns = [...columns];
+    // Convert text to uppercase, filter only letters, and split into array
     const sanitized = value.toUpperCase().replace(/[^A-Z]/g, '');
-    newColumns[colIndex].letters[letterIndex] = sanitized;
+    const letters = sanitized.split('');
+    newColumns[colIndex].letters = letters.length > 0 ? letters : [''];
     setColumns(newColumns);
   };
 
-  const handleAddLetter = (colIndex: number) => {
-    const newColumns = [...columns];
-    newColumns[colIndex].letters.push('');
-    setColumns(newColumns);
+  const handleAddColumn = () => {
+    setColumns([...columns, { letters: [''] }]);
   };
 
-  const handleRemoveLetter = (colIndex: number, letterIndex: number) => {
-    const newColumns = [...columns];
-    if (newColumns[colIndex].letters.length > 1) {
-      newColumns[colIndex].letters.splice(letterIndex, 1);
-      setColumns(newColumns);
+  const handleRemoveColumn = () => {
+    if (columns.length > 1) {
+      setColumns(columns.slice(0, -1));
     }
   };
 
@@ -72,139 +64,125 @@ export default function TypeshiftPage() {
   };
 
   const handleReset = () => {
-    setIsConfigured(false);
-    setColumns([]);
+    setColumns(Array(5).fill(null).map(() => ({ letters: [''] })));
     setSolution(null);
   };
 
-  if (!isConfigured) {
-    return (
-      <div className="max-w-2xl mx-auto">
-        <h1 className="text-3xl font-bold mb-6">Typeshift Solver</h1>
-
-        <div className="mb-6 p-6 bg-blue-50 rounded-lg">
-          <h2 className="text-xl font-semibold mb-3">How it works</h2>
-          <p className="mb-2">
-            Typeshift puzzles consist of columns of letters. You shift each column to form valid words
-            by taking one letter from each column.
-          </p>
-          <p>
-            This solver will find all possible valid words and calculate the minimal core solution set.
-          </p>
-        </div>
-
-        <div className="bg-white p-6 rounded-lg shadow">
-          <label className="block mb-4">
-            <span className="text-gray-700 font-semibold">Number of Columns:</span>
-            <input
-              type="number"
-              min="2"
-              max="10"
-              value={numColumns}
-              onChange={(e) => setNumColumns(parseInt(e.target.value) || 2)}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border"
-            />
-          </label>
-
-          <button
-            onClick={handleConfigureColumns}
-            className="w-full bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700 transition-colors font-semibold"
-          >
-            Configure Columns
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="max-w-6xl mx-auto">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">Typeshift Solver</h1>
-        <button
-          onClick={handleReset}
-          className="bg-gray-500 text-white py-2 px-4 rounded hover:bg-gray-600 transition-colors"
-        >
-          Reset
-        </button>
+    <div className={solverStyles.solverContainer}>
+      <h1 className={solverStyles.solverTitle} style={{ marginBottom: '2rem' }}>Typeshift Solver</h1>
+
+      <div className={solverStyles.infoBox}>
+        <h2>How it works</h2>
+        <p>
+          Typeshift puzzles consist of columns of letters. You shift each column to form valid words
+          by taking one letter from each column.
+        </p>
+        <p>
+          This solver will find all possible valid words and calculate the minimal core solution set.
+        </p>
+        <p>
+          Enter values column by column. You can add and remove columns as needed with the + and - buttons.
+        </p>
       </div>
 
-      <div className="mb-6">
-        <h2 className="text-xl font-semibold mb-3">Enter Letters (top to bottom)</h2>
-        <div className="flex gap-4 overflow-x-auto pb-4">
+      <div style={{ marginBottom: '2rem' }}>
+        <h2 className={solverStyles.sectionTitle}>Enter Letters (top to bottom)</h2>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'center', gap: '1rem' }}>
+          <div className={solverStyles.columnGrid}>
           {columns.map((column, colIndex) => (
-            <div key={colIndex} className="flex-shrink-0">
-              <div className="bg-white p-4 rounded-lg shadow border-2 border-gray-200">
-                <div className="text-center font-semibold mb-2 text-gray-700">
-                  Column {colIndex + 1}
-                </div>
-                <div className="space-y-2">
-                  {column.letters.map((letter, letterIndex) => (
-                    <div key={letterIndex} className="flex gap-1">
-                      <input
-                        type="text"
-                        maxLength={1}
-                        value={letter}
-                        onChange={(e) => handleLetterChange(colIndex, letterIndex, e.target.value)}
-                        className="w-12 h-12 text-center text-2xl font-bold border-2 border-gray-300 rounded focus:border-blue-500 focus:outline-none uppercase"
-                      />
-                      {column.letters.length > 1 && (
-                        <button
-                          onClick={() => handleRemoveLetter(colIndex, letterIndex)}
-                          className="text-red-500 hover:text-red-700 px-2"
-                          title="Remove letter"
-                        >
-                          ×
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-                <button
-                  onClick={() => handleAddLetter(colIndex)}
-                  className="mt-2 w-full bg-green-500 text-white py-1 rounded hover:bg-green-600 text-sm"
-                >
-                  + Add Letter
-                </button>
+            <div key={colIndex} className={solverStyles.column}>
+              <div className={solverStyles.columnHeader}>
+                Column {colIndex + 1}
               </div>
+              <textarea
+                value={column.letters.join('\n')}
+                onChange={(e) => handleColumnTextChange(colIndex, e.target.value)}
+                rows={Math.max(3, column.letters.filter(l => l).length)}
+                style={{
+                  width: '100%',
+                  padding: '0.75rem',
+                  fontSize: '1.75rem',
+                  fontWeight: '700',
+                  textAlign: 'center',
+                  textTransform: 'uppercase',
+                  border: '2px solid #d1d5db',
+                  borderRadius: '0.75rem',
+                  fontFamily: 'inherit',
+                  resize: 'none',
+                  lineHeight: '1.5',
+                  transition: 'all 0.2s ease',
+                  outline: 'none',
+                  overflow: 'hidden',
+                }}
+                onFocus={(e) => {
+                  e.target.style.borderColor = '#667eea';
+                  e.target.style.boxShadow = '0 0 0 3px rgba(102, 126, 234, 0.15)';
+                }}
+                onBlur={(e) => {
+                  e.target.style.borderColor = '#d1d5db';
+                  e.target.style.boxShadow = 'none';
+                }}
+              />
             </div>
           ))}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            <button
+              onClick={handleAddColumn}
+              className={`${buttonStyles.button} ${buttonStyles.buttonSuccess}`}
+              style={{ width: '3rem', height: '3rem', fontSize: '1.5rem', padding: '0' }}
+              title="Add column"
+            >
+              +
+            </button>
+            <button
+              onClick={handleRemoveColumn}
+              disabled={columns.length <= 1}
+              className={`${buttonStyles.button} ${buttonStyles.buttonDanger}`}
+              style={{ width: '3rem', height: '3rem', fontSize: '1.5rem', padding: '0' }}
+              title="Remove column"
+            >
+              −
+            </button>
+          </div>
         </div>
       </div>
 
-      <div className="mb-6">
+      <div style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'center' }}>
         <button
           onClick={handleSolve}
           disabled={solving}
-          className="w-full bg-blue-600 text-white py-3 px-6 rounded-lg hover:bg-blue-700 transition-colors font-semibold text-lg disabled:bg-gray-400 disabled:cursor-not-allowed"
+          className={`${buttonStyles.button} ${buttonStyles.buttonPrimary}`}
+          style={{ width: '40%', fontSize: '1.125rem', padding: '1rem 1.5rem' }}
         >
           {solving ? 'Solving...' : 'Solve'}
         </button>
       </div>
 
       {solution && (
-        <div className="space-y-6">
-          <div className="bg-green-50 p-6 rounded-lg shadow">
-            <h2 className="text-2xl font-bold mb-4 text-green-800">Core Solution</h2>
-            <p className="mb-2 text-gray-700">
+        <div>
+          <div className={`${solverStyles.resultSection} ${solverStyles.coreResultSection}`}>
+            <h2>Core Solution</h2>
+            <p className={solverStyles.resultDescription}>
               Minimal core solution ({solution.coreWords.length} words):
             </p>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+            <div className={solverStyles.wordGrid}>
               {solution.coreWords.map((word, idx) => (
-                <div key={idx} className="bg-white p-2 rounded border-2 border-green-300 font-mono text-lg">
+                <div key={idx} className={`${solverStyles.wordCard} ${solverStyles.coreWordCard}`}>
                   {word}
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="bg-blue-50 p-6 rounded-lg shadow">
-            <h2 className="text-2xl font-bold mb-4 text-blue-800">
+          <div className={`${solverStyles.resultSection} ${solverStyles.allWordsSection}`}>
+            <h2>
               All Valid Words ({solution.allWords.length})
             </h2>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2 max-h-96 overflow-y-auto">
+            <div className={solverStyles.allWordsGrid}>
               {solution.allWords.map((word, idx) => (
-                <div key={idx} className="bg-white p-2 rounded border border-blue-200 font-mono">
+                <div key={idx} className={`${solverStyles.wordCard} ${solverStyles.allWordCard}`}>
                   {word}
                 </div>
               ))}
