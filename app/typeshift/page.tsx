@@ -81,6 +81,9 @@ export default function TypeshiftPage() {
         <p>
           This solver will find all possible valid words and calculate the minimal core solution set.
         </p>
+        <p>
+          Enter values column by column. You can add and remove columns as needed with the + and - buttons.
+        </p>
       </div>
 
       <div style={{ marginBottom: '2rem' }}>
