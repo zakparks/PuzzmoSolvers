@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { solveSpelltower, createEmptyGrid, Grid, Cell, CellType } from '@/lib/solvers/spelltower';
 import buttonStyles from '@/styles/components/button.module.css';
 import solverStyles from '@/styles/solver.module.css';
@@ -8,6 +8,23 @@ import gridStyles from '@/styles/grid-solver.module.css';
 
 const ROWS = 13;
 const COLS = 9;
+const STORAGE_KEY = 'spelltower-grid';
+
+interface GameState {
+  grid: Grid;
+  solution: {
+    sequence: Array<{
+      word: string;
+      path: { row: number; col: number }[];
+      score: number;
+      hasRedTile: boolean;
+      hasStarredTile: boolean;
+    }>;
+    totalScore: number;
+    clearedAll: boolean;
+  } | null;
+  totalScore: number;
+}
 
 export default function SpelltowerPage() {
   const [grid, setGrid] = useState<Grid>(createEmptyGrid());
@@ -24,6 +41,28 @@ export default function SpelltowerPage() {
     clearedAll: boolean;
   } | null>(null);
   const [selectedCellType, setSelectedCellType] = useState<CellType>('letter');
+  const [selectedWord, setSelectedWord] = useState<{ word: string; path: { row: number; col: number }[]; score: number } | null>(null);
+  const [hoveredWord, setHoveredWord] = useState<{ word: string; path: { row: number; col: number }[]; score: number } | null>(null);
+  const [totalScore, setTotalScore] = useState(0);
+  const [history, setHistory] = useState<GameState[]>([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+
+  // Load from localStorage on mount (client-side only)
+  useEffect(() => {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      try {
+        setGrid(JSON.parse(saved));
+      } catch (e) {
+        console.error('Failed to load saved grid:', e);
+      }
+    }
+  }, []);
+
+  // Save grid to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(grid));
+  }, [grid]);
 
   const handleCellLetterChange = (row: number, col: number, value: string) => {
     const newGrid = grid.map(r => r.map(c => ({ ...c })));
@@ -100,10 +139,26 @@ export default function SpelltowerPage() {
   const handleSolve = async () => {
     setSolving(true);
     setSolution(null);
+    setSelectedWord(null);
 
     try {
+      console.log('Starting solve with grid:', grid);
       const result = await solveSpelltower(grid);
-      setSolution(result);
+      console.log('Solver result:', result);
+
+      // Set total score to 0 when first solving
+      const initialSolution = { ...result, totalScore: 0 };
+      setSolution(initialSolution);
+
+      // Save initial state to history
+      const initialState: GameState = {
+        grid: grid.map(row => row.map(cell => ({ ...cell }))),
+        solution: initialSolution,
+        totalScore: 0
+      };
+
+      setHistory([initialState]);
+      setHistoryIndex(0);
     } catch (error) {
       console.error('Error solving:', error);
       alert('An error occurred while solving');
@@ -112,12 +167,177 @@ export default function SpelltowerPage() {
     }
   };
 
+  const applyGravity = (gridToModify: Grid): void => {
+    for (let col = 0; col < COLS; col++) {
+      // Collect non-blank cells from bottom to top
+      const nonBlankCells: Cell[] = [];
+      for (let row = ROWS - 1; row >= 0; row--) {
+        if (gridToModify[row][col].type !== 'blank' && gridToModify[row][col].letter !== '') {
+          nonBlankCells.push({ ...gridToModify[row][col] });
+        }
+      }
+
+      // Fill column from bottom with non-blank cells
+      for (let row = ROWS - 1; row >= 0; row--) {
+        const cellIndex = ROWS - 1 - row;
+        if (cellIndex < nonBlankCells.length) {
+          gridToModify[row][col] = nonBlankCells[cellIndex];
+        } else {
+          gridToModify[row][col] = { letter: '', type: 'blank' };
+        }
+      }
+    }
+  };
+
+  const handleUseWord = async () => {
+    if (!selectedWord || !solution) return;
+
+    // Create new grid with tiles removed
+    const newGrid = grid.map(row => row.map(cell => ({ ...cell })));
+
+    // Remove word path tiles
+    for (const { row, col } of selectedWord.path) {
+      newGrid[row][col] = { letter: '', type: 'blank' };
+    }
+
+    // Remove all bonus clear cells (5+ letter adjacent cells, red tile rows)
+    const clearCells = getAdjacentClearCells();
+    for (const { row, col } of clearCells) {
+      newGrid[row][col] = { letter: '', type: 'blank' };
+    }
+
+    // Apply gravity
+    applyGravity(newGrid);
+
+    // Update total score
+    const newTotalScore = totalScore + selectedWord.score;
+
+    // Re-solve with new grid
+    setSolving(true);
+    try {
+      const result = await solveSpelltower(newGrid);
+
+      // Create the new state that we're moving to
+      const newState: GameState = {
+        grid: newGrid.map(row => row.map(cell => ({ ...cell }))),
+        solution: { ...result, totalScore: newTotalScore },
+        totalScore: newTotalScore
+      };
+
+      // Trim any future history if we're not at the end (branching timeline)
+      const newHistory = history.slice(0, historyIndex + 1);
+      newHistory.push(newState);
+      setHistory(newHistory);
+      setHistoryIndex(newHistory.length - 1);
+
+      // Update to new state
+      setGrid(newGrid);
+      setSolution({ ...result, totalScore: newTotalScore });
+      setTotalScore(newTotalScore);
+      setSelectedWord(null);
+    } catch (error) {
+      console.error('Error solving:', error);
+      alert('An error occurred while solving');
+    } finally {
+      setSolving(false);
+    }
+  };
+
+  const handleUndo = () => {
+    if (historyIndex <= 0) return;
+
+    const previousState = history[historyIndex - 1];
+    setGrid(previousState.grid.map(row => row.map(cell => ({ ...cell }))));
+    setSolution(previousState.solution);
+    setTotalScore(previousState.totalScore);
+    setSelectedWord(null);
+    setHistoryIndex(historyIndex - 1);
+  };
+
+  const handleRedo = () => {
+    if (historyIndex >= history.length - 1) return;
+
+    const nextState = history[historyIndex + 1];
+    setGrid(nextState.grid.map(row => row.map(cell => ({ ...cell }))));
+    setSolution(nextState.solution);
+    setTotalScore(nextState.totalScore);
+    setSelectedWord(null);
+    setHistoryIndex(historyIndex + 1);
+  };
+
   const handleClear = () => {
     setGrid(createEmptyGrid());
     setSolution(null);
+    setSelectedWord(null);
+    setTotalScore(0);
+    setHistory([]);
+    setHistoryIndex(-1);
+    localStorage.removeItem(STORAGE_KEY);
   };
 
-  const getCellClassName = (cell: Cell): string => {
+  // Get the active word (hovered or selected)
+  const getActiveWord = () => hoveredWord || selectedWord;
+
+  // Check if a cell is in the active word's path
+  const isCellInPath = (row: number, col: number): boolean => {
+    const activeWord = getActiveWord();
+    if (!activeWord) return false;
+    return activeWord.path.some(p => p.row === row && p.col === col);
+  };
+
+  // Get cells that would be cleared (adjacent for 5+ letter words, red rows, etc)
+  const getAdjacentClearCells = (): { row: number; col: number }[] => {
+    const activeWord = getActiveWord();
+    if (!activeWord) return [];
+
+    const clearCells: { row: number; col: number }[] = [];
+    const pathSet = new Set(activeWord.path.map(p => `${p.row},${p.col}`));
+
+    // Add adjacent cells for 5+ letter words
+    if (activeWord.word.length >= 5) {
+      for (const { row, col } of activeWord.path) {
+        // Check all 4 adjacent directions (not diagonals)
+        const adjacent = [
+          { row: row - 1, col },
+          { row: row + 1, col },
+          { row, col: col - 1 },
+          { row, col: col + 1 }
+        ];
+
+        for (const adj of adjacent) {
+          const key = `${adj.row},${adj.col}`;
+          if (
+            adj.row >= 0 && adj.row < ROWS &&
+            adj.col >= 0 && adj.col < COLS &&
+            !pathSet.has(key) &&
+            !clearCells.some(c => c.row === adj.row && c.col === adj.col)
+          ) {
+            clearCells.push(adj);
+          }
+        }
+      }
+    }
+
+    // Add entire rows for red tiles
+    for (const { row, col } of activeWord.path) {
+      if (grid[row][col].type === 'red') {
+        // Add all cells in this row
+        for (let c = 0; c < COLS; c++) {
+          const key = `${row},${c}`;
+          if (
+            !pathSet.has(key) &&
+            !clearCells.some(cell => cell.row === row && cell.col === c)
+          ) {
+            clearCells.push({ row, col: c });
+          }
+        }
+      }
+    }
+
+    return clearCells;
+  };
+
+  const getCellClassName = (cell: Cell, row: number, col: number): string => {
     const classes = [gridStyles.spelltowerCell];
 
     if (cell.type === 'blank' || !cell.letter) {
@@ -135,6 +355,13 @@ export default function SpelltowerPage() {
       }
     }
 
+    // Add highlight classes for selected word
+    if (isCellInPath(row, col)) {
+      classes.push(gridStyles.cellHighlightGreen);
+    } else if (getAdjacentClearCells().some(c => c.row === row && c.col === col)) {
+      classes.push(gridStyles.cellHighlightOrange);
+    }
+
     return classes.join(' ');
   };
 
@@ -142,14 +369,21 @@ export default function SpelltowerPage() {
     <div className={solverStyles.solverContainer}>
       <h1 className={solverStyles.solverTitle} style={{ marginBottom: '2rem' }}>Spelltower Solver</h1>
 
-      <div className={solverStyles.infoBox}>
-        <h2>How to use</h2>
-        <p>1. Enter letters in the grid (9 columns × 13 rows). Press space for blank cells. The cursor will automatically advance when you enter a valid letter or space.</p>
-        <p>2. Select a cell type and click cells to mark them as red or starred</p>
-        <p>3. Click Solve to find the optimal word sequence</p>
-      </div>
+      {!solution && (
+        <div className={solverStyles.infoBox}>
+          <h2>How to use</h2>
+          <p>1. Enter letters in the grid (9 columns × 13 rows). Press space for blank cells. The cursor will automatically advance when you enter a valid letter or space.</p>
+          <p>2. Select a cell type and click cells to mark them as red or starred</p>
+          <p>3. Click Solve to find the optimal word sequence</p>
+        </div>
+      )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '2rem' }} className="lg:grid-cols-2">
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: solution ? '1fr 2fr' : '1fr',
+        gap: '2rem',
+        alignItems: 'start'
+      }}>
         <div>
           <div style={{ marginBottom: '1.5rem', textAlign: 'center' }}>
             <h3 className={solverStyles.sectionTitle}>Cell Type</h3>
@@ -191,22 +425,63 @@ export default function SpelltowerPage() {
 
           <div style={{ marginBottom: '1.5rem', textAlign: 'center' }}>
             <div className={gridStyles.gridContainer}>
-              <div className={gridStyles.spelltowerGrid}>
-                {grid.map((row, rowIndex) =>
-                  row.map((cell, colIndex) => (
-                    <input
-                      key={`${rowIndex}-${colIndex}`}
-                      type="text"
-                      maxLength={1}
-                      value={cell.letter}
-                      onChange={(e) => handleCellLetterChange(rowIndex, colIndex, e.target.value)}
-                      onClick={() => handleCellClick(rowIndex, colIndex)}
-                      className={getCellClassName(cell)}
-                      disabled={solving}
-                      data-row={rowIndex}
-                      data-col={colIndex}
+              <div style={{ position: 'relative' }}>
+                <div className={gridStyles.spelltowerGrid} style={{
+                  transform: solution ? 'scale(0.85)' : 'scale(1)',
+                  transformOrigin: 'center',
+                  transition: 'transform 0.3s ease'
+                }}>
+                  {grid.map((row, rowIndex) =>
+                    row.map((cell, colIndex) => (
+                      <input
+                        key={`${rowIndex}-${colIndex}`}
+                        type="text"
+                        maxLength={1}
+                        value={cell.letter}
+                        onChange={(e) => handleCellLetterChange(rowIndex, colIndex, e.target.value)}
+                        onClick={() => handleCellClick(rowIndex, colIndex)}
+                        className={getCellClassName(cell, rowIndex, colIndex)}
+                        disabled={solving}
+                        data-row={rowIndex}
+                        data-col={colIndex}
+                      />
+                    ))
+                  )}
+                </div>
+                {getActiveWord() && (
+                  <svg
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: '100%',
+                      height: '100%',
+                      pointerEvents: 'none',
+                      zIndex: 10,
+                      transform: solution ? 'scale(0.85)' : 'scale(1)',
+                      transformOrigin: 'center',
+                      transition: 'transform 0.3s ease'
+                    }}
+                    viewBox="0 0 100 100"
+                    preserveAspectRatio="none"
+                  >
+                    <polyline
+                      points={getActiveWord()!.path.map((p) => {
+                        const cellWidth = 100 / COLS;
+                        const cellHeight = 100 / ROWS;
+                        const x = (p.col + 0.5) * cellWidth;
+                        const y = (p.row + 0.5) * cellHeight;
+                        return `${x},${y}`;
+                      }).join(' ')}
+                      fill="none"
+                      stroke="white"
+                      strokeWidth="12"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      opacity=".3"
+                      vectorEffect="non-scaling-stroke"
                     />
-                  ))
+                  </svg>
                 )}
               </div>
             </div>
@@ -214,6 +489,16 @@ export default function SpelltowerPage() {
 
           <div style={{ textAlign: 'center' }}>
             <div className={buttonStyles.buttonGroup} style={{ justifyContent: 'center' }}>
+              {selectedWord && (
+                <button
+                  onClick={handleUseWord}
+                  disabled={solving}
+                  className={`${buttonStyles.button} ${buttonStyles.buttonPrimary}`}
+                  style={{ fontSize: '1.125rem' }}
+                >
+                  Use Word
+                </button>
+              )}
               <button
                 onClick={handleSolve}
                 disabled={solving}
@@ -221,6 +506,20 @@ export default function SpelltowerPage() {
                 style={{ fontSize: '1.125rem' }}
               >
                 {solving ? 'Solving...' : 'Solve'}
+              </button>
+              <button
+                onClick={handleUndo}
+                disabled={solving || historyIndex <= 0}
+                className={`${buttonStyles.button} ${buttonStyles.buttonSecondary}`}
+              >
+                Undo
+              </button>
+              <button
+                onClick={handleRedo}
+                disabled={solving || historyIndex >= history.length - 1}
+                className={`${buttonStyles.button} ${buttonStyles.buttonSecondary}`}
+              >
+                Redo
               </button>
               <button
                 onClick={handleClear}
@@ -246,52 +545,84 @@ export default function SpelltowerPage() {
           )}
 
           {solution && (
-            <div className={`${solverStyles.resultSection} ${solverStyles.coreResultSection}`}>
-              <h2>Solution Found!</h2>
-
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              height: 'calc(100vh - 12rem)',
+              position: 'sticky',
+              top: '2rem'
+            }}>
               <div style={{
                 background: 'white',
                 padding: '1.5rem',
                 borderRadius: '0.75rem',
                 border: '2px solid #34d399',
-                marginBottom: '1.5rem'
+                marginBottom: '1.5rem',
+                flexShrink: 0
               }}>
-                <div style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: '0.5rem' }}>
-                  Total Score: {solution.totalScore}
-                </div>
-                <div style={{ fontSize: '0.9375rem', color: '#059669', marginBottom: '0.25rem' }}>
-                  {solution.clearedAll ? '✓ All tiles cleared!' : 'Some tiles remaining'}
-                </div>
-                <div style={{ fontSize: '0.9375rem', color: '#4b5563' }}>
-                  Word sequence: {solution.sequence.length} words
+                <div style={{ fontSize: '1.25rem', fontWeight: 600, color: '#1f2937' }}>
+                  Total Score: {totalScore}
                 </div>
               </div>
 
-              <h3 className={solverStyles.sectionTitle}>Word Sequence:</h3>
-              <div className={gridStyles.solutionSequence}>
-                {solution.sequence.map((wordPath, idx) => (
-                  <div key={idx} className={gridStyles.sequenceItem}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div>
-                        <span style={{ fontSize: '1.125rem', fontWeight: 700 }}>
-                          {idx + 1}. {wordPath.word}
-                        </span>
-                        {wordPath.hasStarredTile && <span style={{ marginLeft: '0.5rem', color: '#ca8a04' }}>⭐</span>}
-                        {wordPath.hasRedTile && (
-                          <span style={{ marginLeft: '0.5rem', color: '#dc2626', fontSize: '0.875rem' }}>
-                            (red tile)
-                          </span>
-                        )}
-                      </div>
-                      <div style={{ color: '#059669', fontWeight: 700 }}>
+              <div style={{
+                flex: 1,
+                overflow: 'hidden',
+                display: 'flex',
+                flexDirection: 'column',
+                background: 'white',
+                borderRadius: '0.75rem',
+                border: '2px solid #e5e7eb'
+              }}>
+                <h3 className={solverStyles.sectionTitle} style={{
+                  margin: '1rem 1.5rem',
+                  flexShrink: 0
+                }}>Words Found:</h3>
+                <div style={{
+                  flex: 1,
+                  overflowY: 'auto',
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: '0.375rem',
+                  padding: '0 1.5rem 1.5rem 1.5rem',
+                  backgroundColor: '#f9fafb',
+                  alignContent: 'flex-start'
+                }}>
+                  {solution.sequence.map((wordPath, idx) => (
+                    <div
+                      key={idx}
+                      onClick={() => setSelectedWord(wordPath)}
+                      onMouseEnter={() => setHoveredWord(wordPath)}
+                      onMouseLeave={() => setHoveredWord(null)}
+                      style={{
+                        padding: '0.25rem 0.5rem',
+                        backgroundColor: selectedWord?.word === wordPath.word &&
+                                         selectedWord?.path[0].row === wordPath.path[0].row &&
+                                         selectedWord?.path[0].col === wordPath.path[0].col
+                          ? '#dbeafe'
+                          : hoveredWord?.word === wordPath.word &&
+                            hoveredWord?.path[0].row === wordPath.path[0].row &&
+                            hoveredWord?.path[0].col === wordPath.path[0].col
+                          ? '#f3f4f6'
+                          : '#ffffff',
+                        border: '1px solid #e5e7eb',
+                        borderRadius: '0.375rem',
+                        fontSize: '0.875rem',
+                        color: '#1f2937',
+                        whiteSpace: 'nowrap',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s',
+                        height: 'fit-content'
+                      }}
+                    >
+                      <span style={{ fontWeight: 600 }}>{wordPath.word}</span>
+                      {wordPath.hasStarredTile && <span style={{ marginLeft: '0.25rem' }}>⭐</span>}
+                      <span style={{ marginLeft: '0.375rem', color: '#059669', fontSize: '0.75rem' }}>
                         +{wordPath.score}
-                      </div>
+                      </span>
                     </div>
-                    <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.25rem' }}>
-                      {wordPath.word.length} letters
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             </div>
           )}
