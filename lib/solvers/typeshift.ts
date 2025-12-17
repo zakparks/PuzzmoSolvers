@@ -60,8 +60,40 @@ export async function findAllWords(columns: TypeshiftColumn[]): Promise<string[]
   return validWords.sort();
 }
 
+function getTotalLetterCount(columns: TypeshiftColumn[]): number {
+  return columns.reduce((sum, col) => sum + col.letters.length, 0);
+}
+
 /**
- * Finds the minimal core solution set
+ * Calculate a "commonness" score for a word (lower is better/more common)
+ * Uses multiple heuristics to estimate word frequency
+ */
+function getWordCommonScore(word: string): number {
+  // Shorter words are generally more common
+  const lengthPenalty = word.length * 10;
+
+  // Words with common letters are generally more common
+  const commonLetters = 'etaoinshrdlu';
+  let uncommonLetterCount = 0;
+  for (const char of word.toLowerCase()) {
+    if (!commonLetters.includes(char)) {
+      uncommonLetterCount++;
+    }
+  }
+
+  // Penalize words with less common letters
+  const letterPenalty = uncommonLetterCount * 5;
+
+  // Penalize words with repeated letters (less common in general)
+  const uniqueLetters = new Set(word.toLowerCase()).size;
+  const repetitionPenalty = (word.length - uniqueLetters) * 3;
+
+  return lengthPenalty + letterPenalty + repetitionPenalty;
+}
+
+/**
+ * Finds the minimal core solution set using backtracking
+ * Ensures we use exactly maxHeight words (one per row)
  * @param columns - Array of columns
  * @param allWords - All valid words that can be formed
  * @returns Core solution words
@@ -71,70 +103,92 @@ export function findCoreWords(
   allWords: string[]
 ): string[] {
   const maxHeight = Math.max(...columns.map(col => col.letters.length));
+  const totalLetters = getTotalLetterCount(columns);
 
-  // Track which letters have been used (by column and index)
-  const usedLetters = new Set<string>();
-
-  // Create letter position map
-  const letterPositions = new Map<string, { col: number; idx: number }[]>();
-  columns.forEach((column, colIndex) => {
-    column.letters.forEach((letter, letterIndex) => {
-      const key = `${colIndex}-${letter.toLowerCase()}`;
-      if (!letterPositions.has(key)) {
-        letterPositions.set(key, []);
-      }
-      letterPositions.get(key)!.push({ col: colIndex, idx: letterIndex });
-    });
+  // Sort words by "commonness" (shorter, more common letters first)
+  const sortedWords = [...allWords].sort((a, b) => {
+    return getWordCommonScore(a) - getWordCommonScore(b);
   });
 
-  // Greedy algorithm: pick words that cover the most unused letters
-  const coreWords: string[] = [];
+  // Try to find a solution with exactly maxHeight words
+  let bestSolution: string[] = [];
+  let bestCoverage = 0;
 
-  while (usedLetters.size < getTotalLetterCount(columns) && coreWords.length < maxHeight * 2) {
-    let bestWord = '';
-    let bestNewLetters = new Set<string>();
+  // Backtracking function to find minimal word set
+  function backtrack(
+    wordIndex: number,
+    currentWords: string[],
+    usedLetters: Set<string>
+  ): boolean {
+    // If we have maxHeight words, check if we covered all letters
+    if (currentWords.length === maxHeight) {
+      if (usedLetters.size === totalLetters) {
+        // Found perfect solution!
+        bestSolution = [...currentWords];
+        return true;
+      }
+      // Track best partial solution
+      if (usedLetters.size > bestCoverage) {
+        bestCoverage = usedLetters.size;
+        bestSolution = [...currentWords];
+      }
+      return false;
+    }
 
-    for (const word of allWords) {
-      if (coreWords.includes(word)) continue;
+    // If we've exhausted all words, return
+    if (wordIndex >= sortedWords.length) {
+      return false;
+    }
 
-      const newLetters = new Set<string>();
-      let validWord = true;
+    // Pruning: if we can't possibly reach maxHeight words, return
+    const remainingWords = maxHeight - currentWords.length;
+    const remainingCandidates = sortedWords.length - wordIndex;
+    if (remainingCandidates < remainingWords) {
+      return false;
+    }
 
-      // Check if this word introduces new letter usage
-      for (let colIndex = 0; colIndex < word.length; colIndex++) {
-        const letter = word[colIndex].toLowerCase();
-        const column = columns[colIndex];
+    // Try including the current word
+    const word = sortedWords[wordIndex];
+    const newLetters = new Set<string>();
+    let validWord = true;
 
-        // Find which position in the column this letter is at
-        const letterIdx = column.letters.findIndex(l => l.toLowerCase() === letter);
-        if (letterIdx === -1) {
-          validWord = false;
-          break;
-        }
+    for (let colIndex = 0; colIndex < word.length; colIndex++) {
+      const letter = word[colIndex].toLowerCase();
+      const column = columns[colIndex];
+      const letterIdx = column.letters.findIndex(l => l.toLowerCase() === letter);
 
-        const posKey = `${colIndex}-${letterIdx}`;
-        if (!usedLetters.has(posKey)) {
-          newLetters.add(posKey);
-        }
+      if (letterIdx === -1) {
+        validWord = false;
+        break;
       }
 
-      if (validWord && newLetters.size > bestNewLetters.size) {
-        bestWord = word;
-        bestNewLetters = newLetters;
+      const posKey = `${colIndex}-${letterIdx}`;
+      if (!usedLetters.has(posKey)) {
+        newLetters.add(posKey);
       }
     }
 
-    if (!bestWord) break;
+    // Only include this word if it adds new letter coverage
+    if (validWord && newLetters.size > 0) {
+      currentWords.push(word);
+      newLetters.forEach(letter => usedLetters.add(letter));
 
-    coreWords.push(bestWord);
-    bestNewLetters.forEach(letter => usedLetters.add(letter));
+      if (backtrack(wordIndex + 1, currentWords, usedLetters)) {
+        return true; // Found perfect solution
+      }
+
+      // Backtrack
+      currentWords.pop();
+      newLetters.forEach(letter => usedLetters.delete(letter));
+    }
+
+    // Try skipping the current word
+    return backtrack(wordIndex + 1, currentWords, usedLetters);
   }
 
-  return coreWords;
-}
+  backtrack(0, [], new Set());
 
-function getTotalLetterCount(columns: TypeshiftColumn[]): number {
-  return columns.reduce((sum, col) => sum + col.letters.length, 0);
+  return bestSolution;
 }
 
 /**

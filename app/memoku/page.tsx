@@ -13,6 +13,7 @@ export default function MemokuPage() {
   const [stars, setStars] = useState<StarCell[]>([]);
   const [selectedStarColor, setSelectedStarColor] = useState<'gold' | 'purple' | 'green' | null>(null);
   const [focusedCell, setFocusedCell] = useState<{ row: number; col: number } | null>(null);
+  const [highlightedNumber, setHighlightedNumber] = useState<number | null>(null);
 
   const handleCellChange = (row: number, col: number, value: string) => {
     const newGrid = grid.map(r => [...r]);
@@ -147,6 +148,17 @@ export default function MemokuPage() {
     setStars([]);
     setSelectedStarColor(null);
     setFocusedCell(null);
+    setHighlightedNumber(null);
+  };
+
+  const handleCellClick = (row: number, col: number) => {
+    if (!solvedGrid) return;
+
+    const cellValue = solvedGrid[row][col];
+    if (cellValue === null) return;
+
+    // Toggle highlight - if clicking the same number, unhighlight
+    setHighlightedNumber(highlightedNumber === cellValue ? null : cellValue);
   };
 
   const getStarForCell = (row: number, col: number): StarCell | undefined => {
@@ -158,11 +170,17 @@ export default function MemokuPage() {
     const displayGrid = solvedGrid || grid;
     const hasValue = displayGrid[row][col] !== null;
     const wasEmpty = grid[row][col] === null;
+    const cellValue = displayGrid[row][col];
 
     let classes = [gridStyles.sudokuCell];
 
     if (solvedGrid && wasEmpty) {
       classes.push(gridStyles.sudokuCellSolved);
+    }
+
+    // Highlight cells with matching number
+    if (solvedGrid && highlightedNumber !== null && cellValue === highlightedNumber) {
+      classes.push(gridStyles.cellHighlightGreen);
     }
 
     if (star && !hasValue) {
@@ -193,14 +211,31 @@ export default function MemokuPage() {
   const getCellStyle = (row: number, col: number): React.CSSProperties => {
     const star = getStarForCell(row, col);
 
-    if (star) {
-      // If cell has a star, hide the number input
+    // If puzzle is not solved and cell has a star, hide the number
+    if (star && !solvedGrid) {
       return { color: 'transparent', caretColor: 'transparent' };
     }
 
     if (!solvedGrid) return {};
 
     const wasEmpty = grid[row][col] === null;
+
+    // If solved and cell has a star, color the number to match the star
+    if (star && solvedGrid) {
+      let starColor = '#2563eb'; // Default blue for solved cells
+      switch (star.color) {
+        case 'gold':
+          starColor = '#ca8a04';
+          break;
+        case 'purple':
+          starColor = '#7e22ce';
+          break;
+        case 'green':
+          starColor = '#16a34a';
+          break;
+      }
+      return { color: starColor, fontWeight: 'bold' };
+    }
 
     if (wasEmpty) {
       return { color: '#2563eb', fontWeight: 'bold' };
@@ -263,8 +298,9 @@ export default function MemokuPage() {
                   <div
                     key={`${rowIndex}-${colIndex}`}
                     className={getCellClassName(rowIndex, colIndex)}
+                    style={{ cursor: solvedGrid ? 'pointer' : 'default' }}
                   >
-                    {star ? (
+                    {star && !solvedGrid ? (
                       <div className={gridStyles.sudokuCellStar} style={{
                         color: star.color === 'gold' ? '#ca8a04' : star.color === 'purple' ? '#7e22ce' : '#16a34a'
                       }}>
@@ -277,6 +313,7 @@ export default function MemokuPage() {
                       value={cell === null ? '' : cell}
                       onChange={(e) => handleCellChange(rowIndex, colIndex, e.target.value)}
                       onFocus={() => handleCellFocus(rowIndex, colIndex)}
+                      onClick={() => handleCellClick(rowIndex, colIndex)}
                       disabled={!!solvedGrid}
                       style={getCellStyle(rowIndex, colIndex)}
                       data-row={rowIndex}
