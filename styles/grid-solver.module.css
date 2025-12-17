@@ -334,3 +334,14 @@
 .sequenceItem:last-child {
   margin-bottom: 0;
 }
+
+/* Word highlighting for selected word path */
+.cellHighlightGreen {
+  background-color: rgba(34, 197, 94, 0.3) !important;
+  border: 2px solid rgba(34, 197, 94, 0.6) !important;
+}
+
+.cellHighlightOrange {
+  background-color: rgba(251, 146, 60, 0.3) !important;
+  border: 2px solid rgba(251, 146, 60, 0.6) !important;
+}
