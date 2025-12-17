@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { solveSpelltower, createEmptyGrid, Grid, Cell, CellType } from '@/lib/solvers/spelltower';
 import buttonStyles from '@/styles/components/button.module.css';
 import solverStyles from '@/styles/solver.module.css';
@@ -8,6 +8,7 @@ import gridStyles from '@/styles/grid-solver.module.css';
 
 const ROWS = 13;
 const COLS = 9;
+const STORAGE_KEY = 'spelltower-grid';
 
 export default function SpelltowerPage() {
   const [grid, setGrid] = useState<Grid>(createEmptyGrid());
@@ -24,6 +25,23 @@ export default function SpelltowerPage() {
     clearedAll: boolean;
   } | null>(null);
   const [selectedCellType, setSelectedCellType] = useState<CellType>('letter');
+
+  // Load from localStorage on mount (client-side only)
+  useEffect(() => {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      try {
+        setGrid(JSON.parse(saved));
+      } catch (e) {
+        console.error('Failed to load saved grid:', e);
+      }
+    }
+  }, []);
+
+  // Save grid to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(grid));
+  }, [grid]);
 
   const handleCellLetterChange = (row: number, col: number, value: string) => {
     const newGrid = grid.map(r => r.map(c => ({ ...c })));
@@ -102,7 +120,9 @@ export default function SpelltowerPage() {
     setSolution(null);
 
     try {
+      console.log('Starting solve with grid:', grid);
       const result = await solveSpelltower(grid);
+      console.log('Solver result:', result);
       setSolution(result);
     } catch (error) {
       console.error('Error solving:', error);
@@ -115,6 +135,7 @@ export default function SpelltowerPage() {
   const handleClear = () => {
     setGrid(createEmptyGrid());
     setSolution(null);
+    localStorage.removeItem(STORAGE_KEY);
   };
 
   const getCellClassName = (cell: Cell): string => {

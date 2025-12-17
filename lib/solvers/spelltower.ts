@@ -1,4 +1,5 @@
-import { isValidWord } from '../wordnik';
+import { isValidWordLocal } from '../dictionary';
+import { isValidPrefix, isValidWordTrie, loadDictionaryTrie } from '../dictionaryTrie';
 
 export type CellType = 'letter' | 'blank' | 'red' | 'starred';
 
@@ -49,33 +50,74 @@ function getAdjacentCells(row: number, col: number): { row: number; col: number 
 }
 
 /**
- * Finds all valid words starting from a given position
+ * Counts how many tiles will be cleared by playing a word
+ */
+function countTilesCleared(grid: Grid, wordPath: WordPath): number {
+  const cellsToClear = new Set<string>();
+
+  // Add word path cells
+  for (const { row, col } of wordPath.path) {
+    cellsToClear.add(`${row},${col}`);
+  }
+
+  // Handle red tile clearing (entire row)
+  if (wordPath.hasRedTile) {
+    for (const { row, col } of wordPath.path) {
+      if (grid[row][col].type === 'red') {
+        // Clear entire row
+        for (let c = 0; c < COLS; c++) {
+          if (grid[row][c].type !== 'blank' && grid[row][c].letter) {
+            cellsToClear.add(`${row},${c}`);
+          }
+        }
+      }
+    }
+  }
+
+  // Handle adjacent tile clearing (for words > 4 letters)
+  if (wordPath.word.length > 4) {
+    for (const { row, col } of wordPath.path) {
+      const adjacent = getAdjacentCells(row, col);
+      for (const { row: adjRow, col: adjCol } of adjacent) {
+        if (grid[adjRow][adjCol].type !== 'blank' && grid[adjRow][adjCol].letter) {
+          cellsToClear.add(`${adjRow},${adjCol}`);
+        }
+      }
+    }
+  }
+
+  return cellsToClear.size;
+}
+
+/**
+ * Finds all valid words starting from a given position - MEMORY OPTIMIZED VERSION
+ * Uses bit flags instead of Sets to track used cells
  */
 async function findWordsFromPosition(
   grid: Grid,
+  trie: Awaited<ReturnType<typeof loadDictionaryTrie>>,
   startRow: number,
   startCol: number,
-  minLength: number = 3
-): Promise<WordPath[]> {
-  const words: WordPath[] = [];
+  minLength: number = 3,
+  maxLength: number = 15
+): Promise<{ word: string; path: { row: number; col: number }[] }[]> {
+  const validWords: { word: string; path: { row: number; col: number }[] }[] = [];
   const startCell = grid[startRow][startCol];
 
   if (startCell.type === 'blank' || !startCell.letter) {
-    return words;
+    return validWords;
   }
 
   const visited = new Set<string>();
+  const usedCells: boolean[][] = Array(ROWS).fill(null).map(() => Array(COLS).fill(false));
 
-  async function dfs(
+  function dfs(
     row: number,
     col: number,
     currentWord: string,
-    path: { row: number; col: number }[],
-    usedCells: Set<string>
-  ) {
-    const cellKey = `${row},${col}`;
-
-    if (usedCells.has(cellKey)) {
+    path: { row: number; col: number }[]
+  ): void {
+    if (usedCells[row][col]) {
       return;
     }
 
@@ -85,78 +127,100 @@ async function findWordsFromPosition(
     }
 
     const newWord = currentWord + cell.letter;
-    const newPath = [...path, { row, col }];
-    const newUsed = new Set(usedCells);
-    newUsed.add(cellKey);
 
-    // Check if this is a valid word
-    if (newWord.length >= minLength) {
-      const pathKey = newPath.map(p => `${p.row},${p.col}`).join('->');
+    // KEY OPTIMIZATION: Check if this prefix could lead to any valid words (synchronous!)
+    if (!trie.hasPrefix(newWord)) {
+      return;
+    }
 
-      if (!visited.has(pathKey)) {
-        visited.add(pathKey);
+    usedCells[row][col] = true;
+    path.push({ row, col });
 
-        // Check with Wordnik
-        const valid = await isValidWord(newWord);
-        if (valid) {
-          const hasRedTile = newPath.some(p => grid[p.row][p.col].type === 'red');
-          const hasStarredTile = newPath.some(p => grid[p.row][p.col].type === 'starred');
-
-          let score = newWord.length * newWord.length; // Basic scoring: length squared
-          if (hasStarredTile) {
-            score *= 2; // Double for starred tiles
-          }
-
-          words.push({
+    if (newWord.length >= minLength && newWord.length <= maxLength) {
+      if (trie.isWord(newWord)) {
+        const pathKey = path.map(p => `${p.row},${p.col}`).join('->');
+        if (!visited.has(pathKey)) {
+          visited.add(pathKey);
+          validWords.push({
             word: newWord,
-            path: newPath,
-            score,
-            hasRedTile,
-            hasStarredTile,
+            path: [...path],
           });
         }
       }
     }
 
-    // Continue searching
-    if (newWord.length < 15) { // Reasonable max word length
+    if (newWord.length < maxLength) {
       const adjacent = getAdjacentCells(row, col);
       for (const { row: nextRow, col: nextCol } of adjacent) {
-        await dfs(nextRow, nextCol, newWord, newPath, newUsed);
+        dfs(nextRow, nextCol, newWord, path);
       }
     }
+
+    path.pop();
+    usedCells[row][col] = false;
   }
 
-  await dfs(startRow, startCol, '', [], new Set());
+  dfs(startRow, startCol, '', []);
 
-  return words;
+  return validWords;
 }
 
 /**
- * Finds all valid words on the grid
+ * Finds all valid words on the grid using prefix-pruned DFS
+ * Much more efficient than before - no need for candidate limits or post-validation
  */
 async function findAllWords(grid: Grid): Promise<WordPath[]> {
-  const allWords: WordPath[] = [];
-  const seenWords = new Set<string>();
+  const allValidWords: { word: string; path: { row: number; col: number }[] }[] = [];
+  const seenPaths = new Set<string>();
 
+  // Load trie once for all searches
+  const trie = await loadDictionaryTrie();
+
+  // Search from all positions - prefix pruning makes this efficient
   for (let row = 0; row < ROWS; row++) {
     for (let col = 0; col < COLS; col++) {
-      const wordsFromHere = await findWordsFromPosition(grid, row, col);
+      // Find all valid words starting from this position
+      const wordsFromHere = await findWordsFromPosition(grid, trie, row, col, 3, 15);
+
+      console.log(`Found ${wordsFromHere.length} words from position (${row},${col})`);
 
       for (const wordPath of wordsFromHere) {
         const pathKey = wordPath.path.map(p => `${p.row},${p.col}`).join('->');
-        if (!seenWords.has(pathKey)) {
-          seenWords.add(pathKey);
-          allWords.push(wordPath);
+        if (!seenPaths.has(pathKey)) {
+          seenPaths.add(pathKey);
+          allValidWords.push(wordPath);
         }
       }
     }
   }
 
-  // Sort by score descending
-  allWords.sort((a, b) => b.score - a.score);
+  console.log(`Total unique words found: ${allValidWords.length}`);
 
-  return allWords;
+  // Create WordPath objects with scores
+  const validWords: WordPath[] = [];
+
+  for (const candidate of allValidWords) {
+    const hasRedTile = candidate.path.some(p => grid[p.row][p.col].type === 'red');
+    const hasStarredTile = candidate.path.some(p => grid[p.row][p.col].type === 'starred');
+
+    let score = candidate.word.length * candidate.word.length;
+    if (hasStarredTile) {
+      score *= 2;
+    }
+
+    validWords.push({
+      word: candidate.word,
+      path: candidate.path,
+      score,
+      hasRedTile,
+      hasStarredTile,
+    });
+  }
+
+  // Sort by score descending
+  validWords.sort((a, b) => b.score - a.score);
+
+  return validWords;
 }
 
 /**
@@ -256,7 +320,23 @@ function isGridEmpty(grid: Grid): boolean {
 }
 
 /**
- * Solves a Spelltower puzzle using a greedy approach
+ * Counts remaining tiles on the grid
+ */
+function countRemainingTiles(grid: Grid): number {
+  let count = 0;
+  for (let row = 0; row < ROWS; row++) {
+    for (let col = 0; col < COLS; col++) {
+      if (grid[row][col].type !== 'blank' && grid[row][col].letter) {
+        count++;
+      }
+    }
+  }
+  return count;
+}
+
+/**
+ * Solves a Spelltower puzzle with board-clearing strategy
+ * Prioritizes clearing all tiles by looking ahead
  * @param initialGrid - The initial grid state
  * @returns Solution with word sequence and total score
  */
@@ -265,7 +345,6 @@ export async function solveSpelltower(initialGrid: Grid): Promise<SpelltowerSolu
   let currentGrid = copyGrid(initialGrid);
   let totalScore = 0;
 
-  // Greedy approach: keep picking the highest-scoring word
   const MAX_ITERATIONS = 50; // Prevent infinite loops
   let iterations = 0;
 
@@ -279,8 +358,47 @@ export async function solveSpelltower(initialGrid: Grid): Promise<SpelltowerSolu
       break;
     }
 
-    // Pick the highest-scoring word
-    const bestWord = availableWords[0];
+    // Strategy: Prioritize words that clear more tiles
+    // and look ahead to see if they help clear the board
+    let bestWord = availableWords[0];
+    const remainingTiles = countRemainingTiles(currentGrid);
+
+    // On early moves (board > 50% full), prioritize long words and tile clearing
+    if (remainingTiles > 50) {
+      // Find the word that clears the most tiles (considering length and adjacency)
+      let maxCleared = 0;
+      for (const word of availableWords.slice(0, Math.min(20, availableWords.length))) {
+        const tilesCleared = countTilesCleared(currentGrid, word);
+
+        // Bonus for longer words (they clear more adjacent tiles)
+        const clearingPower = tilesCleared + (word.word.length > 7 ? 10 : 0);
+
+        if (clearingPower > maxCleared) {
+          maxCleared = clearingPower;
+          bestWord = word;
+        }
+      }
+    } else {
+      // Late game (< 50 tiles): Look ahead to see which word leads to board clearing
+      let bestClearingWord = availableWords[0];
+      let bestRemainingAfter = remainingTiles;
+
+      for (const word of availableWords.slice(0, Math.min(15, availableWords.length))) {
+        const testGrid = clearWordAndApplyGravity(currentGrid, word);
+        const tilesRemaining = countRemainingTiles(testGrid);
+
+        // Prefer words that leave fewer tiles
+        if (tilesRemaining < bestRemainingAfter) {
+          bestRemainingAfter = tilesRemaining;
+          bestClearingWord = word;
+        } else if (tilesRemaining === bestRemainingAfter && word.score > bestClearingWord.score) {
+          // Tie-breaker: higher score
+          bestClearingWord = word;
+        }
+      }
+
+      bestWord = bestClearingWord;
+    }
 
     sequence.push(bestWord);
     totalScore += bestWord.score;
@@ -289,10 +407,16 @@ export async function solveSpelltower(initialGrid: Grid): Promise<SpelltowerSolu
     currentGrid = clearWordAndApplyGravity(currentGrid, bestWord);
   }
 
+  // Bonus for clearing all tiles
+  const clearedAll = isGridEmpty(currentGrid);
+  if (clearedAll) {
+    totalScore += 1000; // Large bonus for clearing the board
+  }
+
   return {
     sequence,
     totalScore,
-    clearedAll: isGridEmpty(currentGrid),
+    clearedAll,
   };
 }
 
