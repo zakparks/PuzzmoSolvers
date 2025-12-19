@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { solveSpelltower, createEmptyGrid, Grid, Cell, CellType } from '@/lib/solvers/spelltower';
+import { focusNextCell } from '@/lib/utils/gridFocus';
 import buttonStyles from '@/styles/components/button.module.css';
 import solverStyles from '@/styles/solver.module.css';
 import gridStyles from '@/styles/grid-solver.module.css';
@@ -74,7 +75,7 @@ export default function SpelltowerPage() {
       setGrid(newGrid);
       setSolution(null);
       // Auto-tab to next cell
-      focusNextCell(row, col);
+      focusNextCell(row, col, ROWS, COLS);
       return;
     }
 
@@ -88,36 +89,12 @@ export default function SpelltowerPage() {
       setGrid(newGrid);
       setSolution(null);
       // Auto-tab to next cell
-      focusNextCell(row, col);
+      focusNextCell(row, col, ROWS, COLS);
     } else {
       newGrid[row][col].letter = '';
       newGrid[row][col].type = 'blank';
       setGrid(newGrid);
       setSolution(null);
-    }
-  };
-
-  const focusNextCell = (row: number, col: number) => {
-    let nextRow = row;
-    let nextCol = col + 1;
-
-    // Move to next row if at end of current row
-    if (nextCol >= COLS) {
-      nextCol = 0;
-      nextRow = row + 1;
-    }
-
-    // If we're at the last cell, don't focus anything
-    if (nextRow >= ROWS) {
-      return;
-    }
-
-    // Focus the next cell
-    const nextInput = document.querySelector(
-      `input[data-row="${nextRow}"][data-col="${nextCol}"]`
-    ) as HTMLInputElement;
-    if (nextInput) {
-      nextInput.focus();
     }
   };
 
@@ -201,8 +178,7 @@ export default function SpelltowerPage() {
     }
 
     // Remove all bonus clear cells (5+ letter adjacent cells, red tile rows)
-    const clearCells = getAdjacentClearCells();
-    for (const { row, col } of clearCells) {
+    for (const { row, col } of adjacentClearCells) {
       newGrid[row][col] = { letter: '', type: 'blank' };
     }
 
@@ -276,18 +252,16 @@ export default function SpelltowerPage() {
   };
 
   // Get the active word (hovered or selected)
-  const getActiveWord = () => hoveredWord || selectedWord;
+  const activeWord = useMemo(() => hoveredWord || selectedWord, [hoveredWord, selectedWord]);
 
   // Check if a cell is in the active word's path
-  const isCellInPath = (row: number, col: number): boolean => {
-    const activeWord = getActiveWord();
+  const isCellInPath = useCallback((row: number, col: number): boolean => {
     if (!activeWord) return false;
     return activeWord.path.some(p => p.row === row && p.col === col);
-  };
+  }, [activeWord]);
 
   // Get cells that would be cleared (adjacent for 5+ letter words, red rows, etc)
-  const getAdjacentClearCells = (): { row: number; col: number }[] => {
-    const activeWord = getActiveWord();
+  const adjacentClearCells = useMemo((): { row: number; col: number }[] => {
     if (!activeWord) return [];
 
     const clearCells: { row: number; col: number }[] = [];
@@ -335,9 +309,9 @@ export default function SpelltowerPage() {
     }
 
     return clearCells;
-  };
+  }, [activeWord, grid]);
 
-  const getCellClassName = (cell: Cell, row: number, col: number): string => {
+  const getCellClassName = useCallback((cell: Cell, row: number, col: number): string => {
     const classes = [gridStyles.spelltowerCell];
 
     if (cell.type === 'blank' || !cell.letter) {
@@ -358,16 +332,16 @@ export default function SpelltowerPage() {
     // Add highlight classes for selected word
     if (isCellInPath(row, col)) {
       classes.push(gridStyles.cellHighlightGreen);
-    } else if (getAdjacentClearCells().some(c => c.row === row && c.col === col)) {
+    } else if (adjacentClearCells.some(c => c.row === row && c.col === col)) {
       classes.push(gridStyles.cellHighlightOrange);
     }
 
     return classes.join(' ');
-  };
+  }, [isCellInPath, adjacentClearCells]);
 
   return (
     <div className={solverStyles.solverContainer}>
-      <h1 className={solverStyles.solverTitle} style={{ marginBottom: '2rem' }}>Spelltower Solver</h1>
+      <h1 className={`${solverStyles.solverTitle} ${solverStyles.mb2}`}>Spelltower Solver</h1>
 
       {!solution && (
         <div className={solverStyles.infoBox}>
@@ -378,16 +352,11 @@ export default function SpelltowerPage() {
         </div>
       )}
 
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: solution ? '1fr 2fr' : '1fr',
-        gap: '2rem',
-        alignItems: 'start'
-      }}>
+      <div className={`${solverStyles.layoutGrid} ${solution ? solverStyles.layoutGridSplit : solverStyles.layoutGridCentered}`}>
         <div>
-          <div style={{ marginBottom: '1.5rem', textAlign: 'center' }}>
+          <div className={`${solverStyles.mb15} ${solverStyles.textCenter}`}>
             <h3 className={solverStyles.sectionTitle}>Cell Type</h3>
-            <div className={gridStyles.cellTypeButtons} style={{ justifyContent: 'center' }}>
+            <div className={`${gridStyles.cellTypeButtons} ${solverStyles.justifyCenter}`}>
               <button
                 onClick={() => setSelectedCellType('letter')}
                 className={`${gridStyles.cellTypeButton} ${gridStyles.cellTypeButtonNormal} ${
@@ -423,14 +392,10 @@ export default function SpelltowerPage() {
             </div>
           </div>
 
-          <div style={{ marginBottom: '1.5rem', textAlign: 'center' }}>
+          <div className={`${solverStyles.mb15} ${solverStyles.textCenter}`}>
             <div className={gridStyles.gridContainer}>
-              <div style={{ position: 'relative' }}>
-                <div className={gridStyles.spelltowerGrid} style={{
-                  transform: solution ? 'scale(0.85)' : 'scale(1)',
-                  transformOrigin: 'center',
-                  transition: 'transform 0.3s ease'
-                }}>
+              <div className={solverStyles.relative}>
+                <div className={`${gridStyles.spelltowerGrid} ${solverStyles.gridScaleWrapper} ${solution ? solverStyles.gridScaled : ''}`}>
                   {grid.map((row, rowIndex) =>
                     row.map((cell, colIndex) => (
                       <input
@@ -448,25 +413,14 @@ export default function SpelltowerPage() {
                     ))
                   )}
                 </div>
-                {getActiveWord() && (
+                {activeWord && (
                   <svg
-                    style={{
-                      position: 'absolute',
-                      top: 0,
-                      left: 0,
-                      width: '100%',
-                      height: '100%',
-                      pointerEvents: 'none',
-                      zIndex: 10,
-                      transform: solution ? 'scale(0.85)' : 'scale(1)',
-                      transformOrigin: 'center',
-                      transition: 'transform 0.3s ease'
-                    }}
+                    className={`${solverStyles.pathOverlay} ${solverStyles.gridScaleWrapper} ${solution ? solverStyles.gridScaled : ''}`}
                     viewBox="0 0 100 100"
                     preserveAspectRatio="none"
                   >
                     <polyline
-                      points={getActiveWord()!.path.map((p) => {
+                      points={activeWord.path.map((p: { row: number; col: number }) => {
                         const cellWidth = 100 / COLS;
                         const cellHeight = 100 / ROWS;
                         const x = (p.col + 0.5) * cellWidth;
@@ -478,7 +432,7 @@ export default function SpelltowerPage() {
                       strokeWidth="12"
                       strokeLinecap="round"
                       strokeLinejoin="round"
-                      opacity=".3"
+                      opacity=".6"
                       vectorEffect="non-scaling-stroke"
                     />
                   </svg>
@@ -487,14 +441,13 @@ export default function SpelltowerPage() {
             </div>
           </div>
 
-          <div style={{ textAlign: 'center' }}>
-            <div className={buttonStyles.buttonGroup} style={{ justifyContent: 'center' }}>
+          <div className={solverStyles.textCenter}>
+            <div className={`${buttonStyles.buttonGroup} ${solverStyles.justifyCenter}`}>
               {selectedWord && (
                 <button
                   onClick={handleUseWord}
                   disabled={solving}
-                  className={`${buttonStyles.button} ${buttonStyles.buttonPrimary}`}
-                  style={{ fontSize: '1.125rem' }}
+                  className={`${buttonStyles.button} ${buttonStyles.buttonPrimary} ${solverStyles['fontSize-lg']}`}
                 >
                   Use Word
                 </button>
@@ -502,8 +455,7 @@ export default function SpelltowerPage() {
               <button
                 onClick={handleSolve}
                 disabled={solving}
-                className={`${buttonStyles.button} ${buttonStyles.buttonPrimary}`}
-                style={{ fontSize: '1.125rem' }}
+                className={`${buttonStyles.button} ${buttonStyles.buttonPrimary} ${solverStyles['fontSize-lg']}`}
               >
                 {solving ? 'Solving...' : 'Solve'}
               </button>
@@ -534,94 +486,52 @@ export default function SpelltowerPage() {
 
         <div>
           {solving && (
-            <div className={solverStyles.resultSection} style={{
-              background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(37, 99, 235, 0.1) 100%)',
-              border: '2px solid rgba(59, 130, 246, 0.3)'
-            }}>
-              <p style={{ color: '#1e40af', fontWeight: 600, margin: 0 }}>
+            <div className={solverStyles.solvingMessage}>
+              <p className={solverStyles.solvingText}>
                 Searching for optimal word sequence... This may take a moment.
               </p>
             </div>
           )}
 
           {solution && (
-            <div style={{
-              display: 'flex',
-              flexDirection: 'column',
-              height: 'calc(100vh - 12rem)',
-              position: 'sticky',
-              top: '2rem'
-            }}>
-              <div style={{
-                background: 'white',
-                padding: '1.5rem',
-                borderRadius: '0.75rem',
-                border: '2px solid #34d399',
-                marginBottom: '1.5rem',
-                flexShrink: 0
-              }}>
-                <div style={{ fontSize: '1.25rem', fontWeight: 600, color: '#1f2937' }}>
+            <div className={solverStyles.scrollableContainer}>
+              <div className={solverStyles.scorePanel}>
+                <div className={solverStyles.scoreText}>
                   Total Score: {totalScore}
                 </div>
               </div>
 
-              <div style={{
-                flex: 1,
-                overflow: 'hidden',
-                display: 'flex',
-                flexDirection: 'column',
-                background: 'white',
-                borderRadius: '0.75rem',
-                border: '2px solid #e5e7eb'
-              }}>
-                <h3 className={solverStyles.sectionTitle} style={{
-                  margin: '1rem 1.5rem',
-                  flexShrink: 0
-                }}>Words Found:</h3>
-                <div style={{
-                  flex: 1,
-                  overflowY: 'auto',
-                  display: 'flex',
-                  flexWrap: 'wrap',
-                  gap: '0.375rem',
-                  padding: '0 1.5rem 1.5rem 1.5rem',
-                  backgroundColor: '#f9fafb',
-                  alignContent: 'flex-start'
-                }}>
-                  {solution.sequence.map((wordPath, idx) => (
-                    <div
-                      key={idx}
-                      onClick={() => setSelectedWord(wordPath)}
-                      onMouseEnter={() => setHoveredWord(wordPath)}
-                      onMouseLeave={() => setHoveredWord(null)}
-                      style={{
-                        padding: '0.25rem 0.5rem',
-                        backgroundColor: selectedWord?.word === wordPath.word &&
-                                         selectedWord?.path[0].row === wordPath.path[0].row &&
-                                         selectedWord?.path[0].col === wordPath.path[0].col
-                          ? '#dbeafe'
-                          : hoveredWord?.word === wordPath.word &&
-                            hoveredWord?.path[0].row === wordPath.path[0].row &&
-                            hoveredWord?.path[0].col === wordPath.path[0].col
-                          ? '#f3f4f6'
-                          : '#ffffff',
-                        border: '1px solid #e5e7eb',
-                        borderRadius: '0.375rem',
-                        fontSize: '0.875rem',
-                        color: '#1f2937',
-                        whiteSpace: 'nowrap',
-                        cursor: 'pointer',
-                        transition: 'all 0.2s',
-                        height: 'fit-content'
-                      }}
-                    >
-                      <span style={{ fontWeight: 600 }}>{wordPath.word}</span>
-                      {wordPath.hasStarredTile && <span style={{ marginLeft: '0.25rem' }}>⭐</span>}
-                      <span style={{ marginLeft: '0.375rem', color: '#059669', fontSize: '0.75rem' }}>
-                        +{wordPath.score}
-                      </span>
-                    </div>
-                  ))}
+              <div className={`${solverStyles.wordListContainer} ${solverStyles.allWordsSection}`}>
+                <h2 style={{ margin: '1rem 1.5rem', flexShrink: 0, color: '#1e40af', fontSize: '1.5rem', fontWeight: 700 }}>Words Found ({solution.sequence.length}):</h2>
+                <div className={solverStyles.wordListContent} style={{ backgroundColor: 'transparent' }}>
+                  {solution.sequence.map((wordPath, idx) => {
+                    const isSelected = selectedWord?.word === wordPath.word &&
+                                      selectedWord?.path[0].row === wordPath.path[0].row &&
+                                      selectedWord?.path[0].col === wordPath.path[0].col;
+                    const isHovered = hoveredWord?.word === wordPath.word &&
+                                     hoveredWord?.path[0].row === wordPath.path[0].row &&
+                                     hoveredWord?.path[0].col === wordPath.path[0].col;
+
+                    return (
+                      <div
+                        key={idx}
+                        onClick={() => setSelectedWord(wordPath)}
+                        onMouseEnter={() => setHoveredWord(wordPath)}
+                        onMouseLeave={() => setHoveredWord(null)}
+                        className={`${solverStyles.wordItem} ${isSelected ? solverStyles.wordItemSelected : isHovered ? solverStyles.wordItemHovered : ''}`}
+                        style={{
+                          border: '1px solid #93c5fd',
+                          color: '#1f2937'
+                        }}
+                      >
+                        <span style={{ fontWeight: 600, color: '#1f2937' }}>{wordPath.word}</span>
+                        {wordPath.hasStarredTile && <span className={solverStyles.wordItemIcon}>⭐</span>}
+                        <span style={{ marginLeft: '0.375rem', color: '#059669', fontSize: '0.75rem' }}>
+                          +{wordPath.score}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </div>

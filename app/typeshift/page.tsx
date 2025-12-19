@@ -70,7 +70,7 @@ export default function TypeshiftPage() {
 
   return (
     <div className={solverStyles.solverContainer}>
-      <h1 className={solverStyles.solverTitle} style={{ marginBottom: '2rem' }}>Typeshift Solver</h1>
+      <h1 className={`${solverStyles.solverTitle} ${solverStyles.mb2}`}>Typeshift Solver</h1>
 
       <div className={solverStyles.infoBox}>
         <h2>How it works</h2>
@@ -86,7 +86,7 @@ export default function TypeshiftPage() {
         </p>
       </div>
 
-      <div style={{ marginBottom: '2rem' }}>
+      <div className={solverStyles.mb2}>
         <h2 className={solverStyles.sectionTitle}>Enter Letters (top to bottom)</h2>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'center', gap: '1rem' }}>
           <div className={solverStyles.columnGrid}>
@@ -149,12 +149,12 @@ export default function TypeshiftPage() {
         </div>
       </div>
 
-      <div style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'center' }}>
+      <div className={`${solverStyles.mb2} ${solverStyles.justifyCenter}`} style={{ display: 'flex' }}>
         <button
           onClick={handleSolve}
           disabled={solving}
-          className={`${buttonStyles.button} ${buttonStyles.buttonPrimary}`}
-          style={{ width: '40%', fontSize: '1.125rem', padding: '1rem 1.5rem' }}
+          className={`${buttonStyles.button} ${buttonStyles.buttonPrimary} ${solverStyles['fontSize-lg']}`}
+          style={{ width: '40%', padding: '1rem 1.5rem' }}
         >
           {solving ? 'Solving...' : 'Solve'}
         </button>
