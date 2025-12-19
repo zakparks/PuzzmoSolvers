@@ -3,22 +3,74 @@
 @tailwind utilities;
 
 :root {
-  /* Color Palette */
+  /* Primary Colors */
+  --color-primary: #667eea;
+  --color-primary-dark: #764ba2;
   --primary-gradient-start: #667eea;
   --primary-gradient-end: #764ba2;
+
+  /* Success Colors */
+  --color-success: #10b981;
+  --color-success-dark: #059669;
+  --color-success-light: #34d399;
   --success-gradient-start: #10b981;
   --success-gradient-end: #059669;
+
+  /* Danger Colors */
+  --color-danger: #ef4444;
+  --color-danger-dark: #dc2626;
+  --color-danger-light: #fee2e2;
+  --color-danger-border: #fecaca;
   --danger-gradient-start: #ef4444;
   --danger-gradient-end: #dc2626;
+
+  /* Warning Colors */
+  --color-warning: #f59e0b;
+  --color-warning-dark: #d97706;
   --warning-gradient-start: #f59e0b;
   --warning-gradient-end: #d97706;
 
-  /* Neutral Colors */
+  /* Info/Blue Colors */
+  --color-info: #2563eb;
+  --color-info-light: #dbeafe;
+  --color-info-medium: #93c5fd;
+  --color-info-dark: #1e40af;
+
+  /* Text Colors */
+  --text-primary: #1f2937;
+  --text-secondary: #374151;
+  --text-tertiary: #4b5563;
+  --text-muted: #6b7280;
+  --text-light: #9ca3af;
+
+  /* Background Colors */
   --background: #f9fafb;
+  --background-white: #ffffff;
+  --background-gray-light: #f3f4f6;
+  --background-gray: #f9fafb;
+
+  /* Border Colors */
+  --border-light: #d1d5db;
+  --border-color: #e5e7eb;
+
+  /* Foreground */
   --foreground: #1f2937;
   --card-background: #ffffff;
-  --border-color: #e5e7eb;
-  --text-muted: #6b7280;
+
+  /* Star Colors (Memoku) */
+  --color-star-gold: #ca8a04;
+  --color-star-gold-bg: #fef9c3;
+  --color-star-gold-border: #fef08a;
+  --color-star-gold-dark: #854d0e;
+  --color-star-gold-active: #eab308;
+  --color-star-purple: #7e22ce;
+  --color-star-purple-bg: #f3e8ff;
+  --color-star-purple-dark: #6b21a8;
+  --color-star-purple-active: #a855f7;
+  --color-star-green: #16a34a;
+  --color-star-green-bg: #dcfce7;
+  --color-star-green-dark: #166534;
+  --color-star-green-active: #22c55e;
 
   /* Shadows */
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);

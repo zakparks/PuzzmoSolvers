@@ -48,7 +48,7 @@ export default function WordbindPage() {
 
   return (
     <div className={solverStyles.solverContainer}>
-      <h1 className={solverStyles.solverTitle} style={{ marginBottom: '2rem' }}>Wordbind Solver</h1>
+      <h1 className={`${solverStyles.solverTitle} ${solverStyles.mb2}`}>Wordbind Solver</h1>
 
       <div className={solverStyles.infoBox}>
         <h2>How it works</h2>
@@ -65,7 +65,7 @@ export default function WordbindPage() {
         </p>
       </div>
 
-      <div className={solverStyles.setupCard} style={{ marginBottom: '2rem' }}>
+      <div className={`${solverStyles.setupCard} ${solverStyles.mb2}`}>
         <div className={inputStyles.inputGroup}>
           <label className={inputStyles.inputLabel}>Source Words (2-3 words):</label>
           <input
@@ -73,9 +73,8 @@ export default function WordbindPage() {
             value={sourceText}
             onChange={(e) => setSourceText(e.target.value)}
             placeholder="e.g., SAMPLE CARD"
-            className={inputStyles.input}
+            className={`${inputStyles.input} ${solverStyles['fontSize-lg']}`}
             disabled={solving}
-            style={{ fontSize: '1.125rem' }}
           />
         </div>
 
@@ -83,8 +82,7 @@ export default function WordbindPage() {
           <button
             onClick={handleSolve}
             disabled={solving}
-            className={`${buttonStyles.button} ${buttonStyles.buttonPrimary}`}
-            style={{ fontSize: '1.125rem' }}
+            className={`${buttonStyles.button} ${buttonStyles.buttonPrimary} ${solverStyles['fontSize-lg']}`}
           >
             {solving ? 'Solving...' : 'Solve'}
           </button>
@@ -109,12 +107,8 @@ export default function WordbindPage() {
       )}
 
       {solving && (
-        <div className={`${solverStyles.resultSection}`} style={{
-          background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(37, 99, 235, 0.1) 100%)',
-          border: '2px solid rgba(59, 130, 246, 0.3)',
-          marginBottom: '1.5rem'
-        }}>
-          <p style={{ color: '#1e40af', fontWeight: 600, margin: 0 }}>
+        <div className={`${solverStyles.solvingMessage} ${solverStyles.mb15}`}>
+          <p className={solverStyles.solvingText}>
             Searching for valid words... This may take a moment.
           </p>
         </div>

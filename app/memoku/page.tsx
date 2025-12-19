@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { solveMemoku, createEmptyGrid, SudokuGrid, StarCell } from '@/lib/solvers/memoku';
+import { focusNextCell } from '@/lib/utils/gridFocus';
 import buttonStyles from '@/styles/components/button.module.css';
 import solverStyles from '@/styles/solver.module.css';
 import gridStyles from '@/styles/grid-solver.module.css';
@@ -22,15 +23,15 @@ export default function MemokuPage() {
     const upperValue = value.toUpperCase();
     if (upperValue === 'Y') {
       handleStarButtonClick('gold');
-      focusNextCell(row, col);
+      focusNextCell(row, col, 9, 9);
       return;
     } else if (upperValue === 'P') {
       handleStarButtonClick('purple');
-      focusNextCell(row, col);
+      focusNextCell(row, col, 9, 9);
       return;
     } else if (upperValue === 'G') {
       handleStarButtonClick('green');
-      focusNextCell(row, col);
+      focusNextCell(row, col, 9, 9);
       return;
     }
 
@@ -40,7 +41,7 @@ export default function MemokuPage() {
       setGrid(newGrid);
       setSolvedGrid(null);
       setError('');
-      focusNextCell(row, col);
+      focusNextCell(row, col, 9, 9);
       return;
     }
 
@@ -54,37 +55,13 @@ export default function MemokuPage() {
       setSolvedGrid(null);
       setError('');
       // Auto-tab to next cell
-      focusNextCell(row, col);
+      focusNextCell(row, col, 9, 9);
       return;
     }
 
     setGrid(newGrid);
     setSolvedGrid(null);
     setError('');
-  };
-
-  const focusNextCell = (row: number, col: number) => {
-    let nextRow = row;
-    let nextCol = col + 1;
-
-    // Move to next row if at end of current row
-    if (nextCol >= 9) {
-      nextCol = 0;
-      nextRow = row + 1;
-    }
-
-    // If we're at the last cell, don't focus anything
-    if (nextRow >= 9) {
-      return;
-    }
-
-    // Focus the next cell
-    const nextInput = document.querySelector(
-      `input[data-row="${nextRow}"][data-col="${nextCol}"]`
-    ) as HTMLInputElement;
-    if (nextInput) {
-      nextInput.focus();
-    }
   };
 
   const handleCellFocus = (row: number, col: number) => {
@@ -248,7 +225,7 @@ export default function MemokuPage() {
 
   return (
     <div className={solverStyles.solverContainer}>
-      <h1 className={solverStyles.solverTitle} style={{ marginBottom: '2rem' }}>Memoku (Sudoku) Solver</h1>
+      <h1 className={`${solverStyles.solverTitle} ${solverStyles.mb2}`}>Memoku (Sudoku) Solver</h1>
 
       <div className={solverStyles.infoBox}>
         <h2>How to use</h2>
@@ -257,9 +234,9 @@ export default function MemokuPage() {
         <p>3. Click Solve to find the solution</p>
       </div>
 
-      <div style={{ marginBottom: '1.5rem', textAlign: 'center' }}>
+      <div className={`${solverStyles.mb15} ${solverStyles.textCenter}`}>
         <h3 className={solverStyles.sectionTitle}>Star Marking</h3>
-        <div className={gridStyles.starButtons} style={{ justifyContent: 'center' }}>
+        <div className={`${gridStyles.starButtons} ${solverStyles.justifyCenter}`}>
           <button
             onClick={() => handleStarButtonClick('gold')}
             className={`${gridStyles.starButton} ${gridStyles.starButtonYellow} ${
@@ -287,7 +264,7 @@ export default function MemokuPage() {
         </div>
       </div>
 
-      <div style={{ marginBottom: '1.5rem', textAlign: 'center' }}>
+      <div className={`${solverStyles.mb15} ${solverStyles.textCenter}`}>
         <div className={gridStyles.gridContainer}>
           <div className={gridStyles.sudokuGrid}>
             {displayGrid.map((row, rowIndex) => (
@@ -297,8 +274,8 @@ export default function MemokuPage() {
                 return (
                   <div
                     key={`${rowIndex}-${colIndex}`}
-                    className={getCellClassName(rowIndex, colIndex)}
-                    style={{ cursor: solvedGrid ? 'pointer' : 'default' }}
+                    className={`${getCellClassName(rowIndex, colIndex)} ${solverStyles.relative} ${solvedGrid ? solverStyles.cursorPointer : solverStyles.cursorDefault}`}
+                    onClick={() => handleCellClick(rowIndex, colIndex)}
                   >
                     {star && !solvedGrid ? (
                       <div className={gridStyles.sudokuCellStar} style={{
@@ -313,9 +290,11 @@ export default function MemokuPage() {
                       value={cell === null ? '' : cell}
                       onChange={(e) => handleCellChange(rowIndex, colIndex, e.target.value)}
                       onFocus={() => handleCellFocus(rowIndex, colIndex)}
-                      onClick={() => handleCellClick(rowIndex, colIndex)}
                       disabled={!!solvedGrid}
-                      style={getCellStyle(rowIndex, colIndex)}
+                      style={{
+                        ...getCellStyle(rowIndex, colIndex),
+                        pointerEvents: solvedGrid ? 'none' : 'auto'
+                      }}
                       data-row={rowIndex}
                       data-col={colIndex}
                     />
@@ -327,7 +306,7 @@ export default function MemokuPage() {
         </div>
       </div>
 
-      <div className={buttonStyles.buttonGroup} style={{ marginBottom: '1.5rem', justifyContent: 'center' }}>
+      <div className={`${buttonStyles.buttonGroup} ${solverStyles.mb15} ${solverStyles.justifyCenter}`}>
         <button
           onClick={handleSolve}
           disabled={!!solvedGrid}
@@ -354,7 +333,7 @@ export default function MemokuPage() {
 
       {solvedGrid && (
         <div className={`${solverStyles.resultSection} ${solverStyles.coreResultSection}`}>
-          <p style={{ margin: 0, fontSize: '1.125rem', fontWeight: 600 }}>
+          <p className={`${solverStyles.successMessage} ${solverStyles['fontSize-lg']}`}>
             Puzzle solved successfully! 🎉
           </p>
         </div>
